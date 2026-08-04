@@ -2,15 +2,12 @@ import { useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { Download, UploadCloud, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
-import { useConfig } from "../context/ConfigContext";
 import { useData } from "../context/DataContext";
-import { calculateOnDemandRateForParcel } from "../lib/rateCalculators";
 import { computeParcelFare } from "../lib/parcelPricingEngine";
 import { loadCoverage, type CoverageData } from "../lib/coverage";
 import { PRODUCT_LABEL, type ParcelProductKey } from "../data/lbcConstants";
 import { formatCurrency, generateTrackingNumber, isValidMobile } from "../lib/utils";
 import { LiabilityDisclaimer } from "./DisclaimerNote";
-import type { CargoType } from "../types";
 
 const PRODUCT_KEYS = Object.keys(PRODUCT_LABEL) as ParcelProductKey[];
 
@@ -23,8 +20,7 @@ const TEMPLATE_HEADERS = [
   "House Number",
   "Landmark",
   "Contact Number",
-  "Type of Cargo (standard / on_demand_standard / on_demand_medical)",
-  `Product SKU (standard only: ${PRODUCT_KEYS.join(" / ")})`,
+  `Product SKU (${PRODUCT_KEYS.join(" / ")})`,
   "Weight (kg — required for gen_cargo, optional otherwise)",
 ];
 
@@ -37,7 +33,6 @@ const TEMPLATE_SAMPLE = [
   "12",
   "Near barangay hall",
   "09171234567",
-  "standard",
   "np_reg",
   "",
 ];
@@ -51,11 +46,9 @@ interface ParsedRow {
   houseNumber: string;
   landmark: string;
   contactNumber: string;
-  cargoType: CargoType;
   product: ParcelProductKey;
   weightKg?: number;
   charge: number;
-  distanceKm?: number;
   error?: string;
 }
 
@@ -70,8 +63,6 @@ function matchCoverageKey(options: string[], text: string): string | undefined {
 
 export default function BulkUploadPanel() {
   const { profile } = useAuth();
-  const { vehicles, productTypes } = useConfig();
-  const activeVehicle = vehicles.find((v) => v.visible && v.active) || vehicles[0];
   const { createBookings } = useData();
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -116,11 +107,7 @@ export default function BulkUploadPanel() {
         }
         if (!profile) return;
 
-        let coverage: CoverageData | null = null;
-        const needsCoverage = json.some((r) => String(r["Type of Cargo (standard / on_demand_standard / on_demand_medical)"] ?? "").trim().toLowerCase() !== "on_demand_standard" && String(r["Type of Cargo (standard / on_demand_standard / on_demand_medical)"] ?? "").trim().toLowerCase() !== "on_demand_medical");
-        if (needsCoverage) {
-          coverage = await loadCoverage();
-        }
+        const coverage: CoverageData = await loadCoverage();
 
         const parsed: ParsedRow[] = json.map((r) => {
           const get = (key: string) => String(r[key] ?? "").trim();
@@ -132,10 +119,7 @@ export default function BulkUploadPanel() {
           const houseNumber = get("House Number");
           const landmark = get("Landmark");
           const contactNumber = get("Contact Number");
-          const rawCargo = get("Type of Cargo (standard / on_demand_standard / on_demand_medical)").toLowerCase();
-          const cargoType: CargoType =
-            rawCargo === "on_demand_standard" || rawCargo === "on_demand_medical" ? (rawCargo as CargoType) : "standard";
-          const rawProduct = get(`Product SKU (standard only: ${PRODUCT_KEYS.join(" / ")})`).toLowerCase();
+          const rawProduct = get(`Product SKU (${PRODUCT_KEYS.join(" / ")})`).toLowerCase();
           const product: ParcelProductKey = (PRODUCT_KEYS as string[]).includes(rawProduct) ? (rawProduct as ParcelProductKey) : "np_reg";
           const weightRaw = get("Weight (kg — required for gen_cargo, optional otherwise)");
           const weightKg = weightRaw ? Number(weightRaw) : undefined;
@@ -146,57 +130,39 @@ export default function BulkUploadPanel() {
           else if (!isValidMobile(contactNumber)) error = "Invalid contact number";
 
           let charge = 0;
-          let distanceKm: number | undefined;
           let province = provinceRaw;
           let city = cityRaw;
           let barangay = barangayRaw;
 
-          if (!error && cargoType === "standard") {
-            if (!coverage) {
-              error = "Coverage data unavailable";
-            } else {
-              const matchedProvince = matchCoverageKey(Object.keys(coverage), provinceRaw);
-              const matchedCity = matchedProvince ? matchCoverageKey(Object.keys(coverage[matchedProvince]), cityRaw) : undefined;
-              const matchedBarangay =
-                matchedProvince && matchedCity ? matchCoverageKey(Object.keys(coverage[matchedProvince][matchedCity]), barangayRaw) : undefined;
+          if (!error) {
+            const matchedProvince = matchCoverageKey(Object.keys(coverage), provinceRaw);
+            const matchedCity = matchedProvince ? matchCoverageKey(Object.keys(coverage[matchedProvince]), cityRaw) : undefined;
+            const matchedBarangay =
+              matchedProvince && matchedCity ? matchCoverageKey(Object.keys(coverage[matchedProvince][matchedCity]), barangayRaw) : undefined;
 
-              if (!matchedProvince || !matchedCity || !matchedBarangay) {
-                error = "Could not match address to coverage data — check spelling";
+            if (!matchedProvince || !matchedCity || !matchedBarangay) {
+              error = "Could not match address to coverage data — check spelling";
+            } else {
+              province = matchedProvince;
+              city = matchedCity;
+              barangay = matchedBarangay;
+              const zone = coverage[matchedProvince][matchedCity][matchedBarangay];
+              const result = computeParcelFare({
+                product,
+                originProvince: profile.address.province,
+                originCity: profile.address.city,
+                destProvince: matchedProvince,
+                destCity: matchedCity,
+                destBarangay: matchedBarangay,
+                destZone: zone,
+                weightKg,
+              });
+              if (!result.serviceable) {
+                error = result.blockReason || "Not serviceable";
               } else {
-                province = matchedProvince;
-                city = matchedCity;
-                barangay = matchedBarangay;
-                const zone = coverage[matchedProvince][matchedCity][matchedBarangay];
-                const result = computeParcelFare({
-                  product,
-                  originProvince: profile.address.province,
-                  originCity: profile.address.city,
-                  destProvince: matchedProvince,
-                  destCity: matchedCity,
-                  destBarangay: matchedBarangay,
-                  destZone: zone,
-                  weightKg,
-                });
-                if (!result.serviceable) {
-                  error = result.blockReason || "Not serviceable";
-                } else {
-                  charge = result.finalFare;
-                }
+                charge = result.finalFare;
               }
             }
-          } else if (!error) {
-            const productType = cargoType === "on_demand_medical" ? "medical" : "standard";
-            const result = calculateOnDemandRateForParcel(
-              profile.address.province,
-              profile.address.city,
-              provinceRaw,
-              cityRaw,
-              productType,
-              activeVehicle,
-              productTypes
-            );
-            charge = result.charge;
-            distanceKm = result.distanceKm;
           }
 
           return {
@@ -208,11 +174,9 @@ export default function BulkUploadPanel() {
             houseNumber,
             landmark,
             contactNumber,
-            cargoType,
             product,
             weightKg,
             charge,
-            distanceKm,
             error,
           };
         });
@@ -239,7 +203,7 @@ export default function BulkUploadPanel() {
       await createBookings(
         validRows.map((r) => ({
           trackingNumber: generateTrackingNumber(),
-          bookingType: r.cargoType === "standard" ? "parcel" : "on_demand",
+          bookingType: "parcel",
           consignee: {
             name: r.name,
             address: {
@@ -251,12 +215,11 @@ export default function BulkUploadPanel() {
               landmark: r.landmark || undefined,
             },
             contactNumber: r.contactNumber,
-            cargoType: r.cargoType,
+            cargoType: "standard",
           },
-          distanceKm: r.distanceKm,
           charge: r.charge,
           status: "Booked",
-          parcelProductSku: r.cargoType === "standard" ? r.product : undefined,
+          parcelProductSku: r.product,
         }))
       );
       setSuccess(validRows.length);
@@ -275,8 +238,8 @@ export default function BulkUploadPanel() {
           <div>
             <h3 className="font-bold text-gray-900">1. Download the Excel template</h3>
             <p className="mt-0.5 text-sm text-gray-500">
-              Fill in up to {MAX_ROWS} consignees, one per row. For Standard cargo, Province/City/Barangay must match
-              real LBC coverage areas — Declared Value and General Cargo dimensions aren't supported via bulk upload.
+              Fill in up to {MAX_ROWS} consignees, one per row. Province/City/Barangay must match real LBC coverage
+              areas — Declared Value and General Cargo dimensions aren't supported via bulk upload.
             </p>
           </div>
           <button type="button" onClick={downloadTemplate} className="btn-secondary">
@@ -326,7 +289,7 @@ export default function BulkUploadPanel() {
                 <tr>
                   <th className="px-3 py-2">Name</th>
                   <th className="px-3 py-2">Destination</th>
-                  <th className="px-3 py-2">Cargo</th>
+                  <th className="px-3 py-2">Product</th>
                   <th className="px-3 py-2">Charge</th>
                   <th className="px-3 py-2">Status</th>
                 </tr>
@@ -338,7 +301,7 @@ export default function BulkUploadPanel() {
                     <td className="px-3 py-2 text-gray-500">
                       {r.city}, {r.province}
                     </td>
-                    <td className="px-3 py-2 text-gray-500">{r.cargoType === "standard" ? PRODUCT_LABEL[r.product] : r.cargoType}</td>
+                    <td className="px-3 py-2 text-gray-500">{PRODUCT_LABEL[r.product]}</td>
                     <td className="px-3 py-2 font-semibold">{r.error ? "—" : formatCurrency(r.charge)}</td>
                     <td className="px-3 py-2">
                       {r.error ? (

@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Trash2 } from "lucide-react";
-import AddressFields from "./AddressFields";
 import CoverageAddressFields from "./CoverageAddressFields";
 import { computeParcelFare, type CoverageZone } from "../lib/parcelPricingEngine";
 import { DOC_KEYS, PRODUCT_LABEL, type ParcelProductKey } from "../data/lbcConstants";
-import type { Address, CargoType } from "../types";
+import type { Address } from "../types";
 import { formatCurrency, isValidMobile } from "../lib/utils";
 
 export interface ConsigneeRowValue {
@@ -12,7 +11,6 @@ export interface ConsigneeRowValue {
   name: string;
   address: Address;
   contactNumber: string;
-  cargoType: CargoType;
   product: ParcelProductKey;
   weightKg: string;
   lengthCm: string;
@@ -27,7 +25,6 @@ export function emptyConsigneeRow(key: string): ConsigneeRowValue {
     name: "",
     address: { province: "", city: "", barangay: "", street: "", houseNumber: "", landmark: "", instructions: "" },
     contactNumber: "",
-    cargoType: "standard",
     product: "np_reg",
     weightKg: "",
     lengthCm: "",
@@ -67,8 +64,6 @@ export default function ConsigneeRow({
   canRemove,
   originProvince,
   originCity,
-  onDemandCharge,
-  onDemandDistanceKm,
   onStandardResult,
 }: {
   index: number;
@@ -78,8 +73,6 @@ export default function ConsigneeRow({
   canRemove: boolean;
   originProvince: string;
   originCity: string;
-  onDemandCharge: number;
-  onDemandDistanceKm?: number;
   onStandardResult: (result: StandardFareResult) => void;
 }) {
   const [zone, setZone] = useState<CoverageZone | undefined>(undefined);
@@ -98,7 +91,6 @@ export default function ConsigneeRow({
   const declaredValueInvalid = declaredValueNum != null && (declaredValueNum < 500 || declaredValueNum > 100000);
 
   const standardResult = useMemo(() => {
-    if (value.cargoType !== "standard") return null;
     if (!value.address.province || !value.address.city || !value.address.barangay) return null;
     if (!zone) return null;
     if (declaredValueInvalid) {
@@ -120,7 +112,6 @@ export default function ConsigneeRow({
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    value.cargoType,
     value.product,
     value.address.province,
     value.address.city,
@@ -138,12 +129,11 @@ export default function ConsigneeRow({
   ]);
 
   useEffect(() => {
-    if (value.cargoType !== "standard") return;
     onStandardResult({ charge: standardResult?.finalFare ?? 0, serviceable: standardResult?.serviceable ?? false });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [standardResult, value.cargoType]);
+  }, [standardResult]);
 
-  const displayCharge = value.cargoType === "standard" ? standardResult?.finalFare ?? 0 : onDemandCharge;
+  const displayCharge = standardResult?.finalFare ?? 0;
 
   return (
     <div className="card">
@@ -162,25 +152,12 @@ export default function ConsigneeRow({
           <input required className="input" value={value.name} onChange={(e) => set("name", e.target.value)} />
         </label>
 
-        <label className="block max-w-xs">
-          <span className="mb-1.5 block text-sm font-medium text-gray-700">Type of Cargo</span>
-          <select className="input" value={value.cargoType} onChange={(e) => set("cargoType", e.target.value as CargoType)}>
-            <option value="standard">Standard (LBC Parcel Rates)</option>
-            <option value="on_demand_standard">On-Demand — Standard</option>
-            <option value="on_demand_medical">On-Demand — Medical</option>
-          </select>
-        </label>
-
-        {value.cargoType === "standard" ? (
-          <CoverageAddressFields
-            value={value.address}
-            onChange={(address) => set("address", address)}
-            onZoneResolved={setZone}
-            showInstructions
-          />
-        ) : (
-          <AddressFields value={value.address} onChange={(address) => set("address", address)} showInstructions />
-        )}
+        <CoverageAddressFields
+          value={value.address}
+          onChange={(address) => set("address", address)}
+          onZoneResolved={setZone}
+          showInstructions
+        />
 
         <label className="block max-w-xs">
           <span className="mb-1.5 block text-sm font-medium text-gray-700">Contact Number</span>
@@ -194,80 +171,69 @@ export default function ConsigneeRow({
           {contactInvalid && <span className="mt-1 block text-xs text-red-500">Enter a valid PH mobile number.</span>}
         </label>
 
-        {value.cargoType === "standard" && (
-          <>
+        <label className="block">
+          <span className="mb-1.5 block text-sm font-medium text-gray-700">Product</span>
+          <select className="input" value={value.product} onChange={(e) => set("product", e.target.value as ParcelProductKey)}>
+            {PRODUCT_OPTIONS.map((p) => (
+              <option key={p} value={p}>
+                {PRODUCT_LABEL[p]}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-medium text-gray-700">Weight (kg){isGenCargo ? "" : " (optional)"}</span>
+            <input
+              type="number"
+              min={0.1}
+              step={0.1}
+              className="input"
+              value={value.weightKg}
+              onChange={(e) => set("weightKg", e.target.value)}
+            />
+          </label>
+          {!isDocProduct && (
             <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-gray-700">Product</span>
-              <select className="input" value={value.product} onChange={(e) => set("product", e.target.value as ParcelProductKey)}>
-                {PRODUCT_OPTIONS.map((p) => (
-                  <option key={p} value={p}>
-                    {PRODUCT_LABEL[p]}
-                  </option>
-                ))}
-              </select>
+              <span className="mb-1.5 block text-sm font-medium text-gray-700">Declared Value (₱, optional)</span>
+              <input
+                type="number"
+                min={0}
+                step={1}
+                className="input"
+                placeholder="500 - 100,000"
+                value={value.declaredValue}
+                onChange={(e) => set("declaredValue", e.target.value)}
+              />
+              {declaredValueInvalid && <span className="mt-1 block text-xs text-red-500">Must be between ₱500 and ₱100,000.</span>}
             </label>
+          )}
+        </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <label className="block">
-                <span className="mb-1.5 block text-sm font-medium text-gray-700">
-                  Weight (kg){isGenCargo ? "" : " (optional)"}
-                </span>
-                <input
-                  type="number"
-                  min={0.1}
-                  step={0.1}
-                  className="input"
-                  value={value.weightKg}
-                  onChange={(e) => set("weightKg", e.target.value)}
-                />
-              </label>
-              {!isDocProduct && (
-                <label className="block">
-                  <span className="mb-1.5 block text-sm font-medium text-gray-700">Declared Value (₱, optional)</span>
-                  <input
-                    type="number"
-                    min={0}
-                    step={1}
-                    className="input"
-                    placeholder="500 - 100,000"
-                    value={value.declaredValue}
-                    onChange={(e) => set("declaredValue", e.target.value)}
-                  />
-                  {declaredValueInvalid && (
-                    <span className="mt-1 block text-xs text-red-500">Must be between ₱500 and ₱100,000.</span>
-                  )}
-                </label>
-              )}
-            </div>
+        {isGenCargo && (
+          <div className="grid grid-cols-3 gap-4">
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-medium text-gray-700">Length (cm)</span>
+              <input type="number" min={0} className="input" value={value.lengthCm} onChange={(e) => set("lengthCm", e.target.value)} />
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-medium text-gray-700">Width (cm)</span>
+              <input type="number" min={0} className="input" value={value.widthCm} onChange={(e) => set("widthCm", e.target.value)} />
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-medium text-gray-700">Height (cm)</span>
+              <input type="number" min={0} className="input" value={value.heightCm} onChange={(e) => set("heightCm", e.target.value)} />
+            </label>
+          </div>
+        )}
 
-            {isGenCargo && (
-              <div className="grid grid-cols-3 gap-4">
-                <label className="block">
-                  <span className="mb-1.5 block text-sm font-medium text-gray-700">Length (cm)</span>
-                  <input type="number" min={0} className="input" value={value.lengthCm} onChange={(e) => set("lengthCm", e.target.value)} />
-                </label>
-                <label className="block">
-                  <span className="mb-1.5 block text-sm font-medium text-gray-700">Width (cm)</span>
-                  <input type="number" min={0} className="input" value={value.widthCm} onChange={(e) => set("widthCm", e.target.value)} />
-                </label>
-                <label className="block">
-                  <span className="mb-1.5 block text-sm font-medium text-gray-700">Height (cm)</span>
-                  <input type="number" min={0} className="input" value={value.heightCm} onChange={(e) => set("heightCm", e.target.value)} />
-                </label>
-              </div>
-            )}
-
-            {standardResult && !standardResult.serviceable && standardResult.blockReason && (
-              <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{standardResult.blockReason}</p>
-            )}
-          </>
+        {standardResult && !standardResult.serviceable && standardResult.blockReason && (
+          <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{standardResult.blockReason}</p>
         )}
 
         <div className="flex items-center justify-between rounded-lg border border-lbc-border bg-lbc-bg px-4 py-3">
-          <span className="text-sm text-gray-600">
-            {value.cargoType === "standard" ? "Charge (LBC Parcel Rates)" : "Charge (On-Demand Calculator)"}
-            {value.cargoType !== "standard" && onDemandDistanceKm ? ` · ~${onDemandDistanceKm} km` : ""}
-          </span>
+          <span className="text-sm text-gray-600">Charge (LBC Parcel Rates)</span>
           <span className="text-lg font-bold text-lbc-red">{formatCurrency(displayCharge)}</span>
         </div>
       </div>
