@@ -1,0 +1,66 @@
+@import "tailwindcss";
+
+@theme {
+  --color-lbc-red: #d0021b;
+  --color-lbc-red-dark: #a90116;
+  --color-lbc-red-light: #fdecec;
+  --color-lbc-ink: #1a1a1a;
+  --color-lbc-gray: #6b7280;
+  --color-lbc-border: #e5e7eb;
+  --color-lbc-bg: #f7f7f8;
+
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-lbc-bg);
+  color: var(--color-lbc-ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 8px;
+}
+
+@layer components {
+  .input {
+    @apply w-full rounded-lg border border-lbc-border bg-white px-3.5 py-2.5 text-sm text-gray-900 outline-none transition focus:border-lbc-red focus:ring-2 focus:ring-lbc-red/20;
+  }
+  .card {
+    @apply rounded-2xl border border-lbc-border bg-white p-6 shadow-sm;
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-lbc-red px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-lbc-red-dark disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-lbc-border bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-lbc-bg disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  .btn-danger-outline {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg border border-transparent px-2.5 py-1.5 text-sm font-medium text-red-600 transition hover:bg-red-50;
+  }
+  .tab-btn {
+    @apply flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-semibold transition;
+  }
+  .tab-btn-active {
+    @apply border-lbc-red text-lbc-red;
+  }
+  .tab-btn-inactive {
+    @apply border-transparent text-gray-500 hover:text-gray-700;
+  }
+}
