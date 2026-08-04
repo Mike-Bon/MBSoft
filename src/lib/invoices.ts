@@ -84,24 +84,26 @@ export async function ensureMonthlyInvoices(profile: Profile, bookings: Booking[
     .eq("user_id", profile.id);
   const existingKeys = new Set((existing || []).map((r) => `${r.period_year}-${r.period_month}`));
 
-  const accountCreated = new Date(profile.createdAt);
   const now = new Date();
-  const cursor = new Date(accountCreated.getFullYear(), accountCreated.getMonth(), 1);
   const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-  while (cursor < currentMonthStart) {
-    const month = cursor.getMonth() + 1;
-    const year = cursor.getFullYear();
-    if (!existingKeys.has(`${year}-${month}`)) {
-      const monthBookings = bookings.filter((b) => {
-        const d = new Date(b.createdAt);
-        return d.getFullYear() === year && d.getMonth() + 1 === month;
-      });
-      if (monthBookings.length > 0) {
-        await createInvoiceForMonth(profile.id, month, year, monthBookings);
-      }
-    }
-    cursor.setMonth(cursor.getMonth() + 1);
+  // Group bookings by calendar month rather than assuming a continuous range from
+  // profile.createdAt — only elapsed months that actually have bookings get billed.
+  const byMonth = new Map<string, Booking[]>();
+  for (const b of bookings) {
+    const d = new Date(b.createdAt);
+    const monthStart = new Date(d.getFullYear(), d.getMonth(), 1);
+    if (monthStart >= currentMonthStart) continue; // current month hasn't elapsed yet
+    const key = `${d.getFullYear()}-${d.getMonth() + 1}`;
+    const list = byMonth.get(key) || [];
+    list.push(b);
+    byMonth.set(key, list);
+  }
+
+  for (const [key, monthBookings] of byMonth) {
+    if (existingKeys.has(key)) continue;
+    const [year, month] = key.split("-").map(Number);
+    await createInvoiceForMonth(profile.id, month, year, monthBookings);
   }
 }
 
