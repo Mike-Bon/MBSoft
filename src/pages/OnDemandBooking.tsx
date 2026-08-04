@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Bike, Calculator, CheckCircle2, Stethoscope } from "lucide-react";
 import PageHeader from "../components/PageHeader";
 import AddressAutocompleteInput, { type PlaceValue } from "../components/AddressAutocompleteInput";
+import ConfirmAddressModal from "../components/ConfirmAddressModal";
+import RouteMap from "../components/RouteMap";
 import { useConfig } from "../context/ConfigContext";
 import { useData } from "../context/DataContext";
 import { computeFare, haversineKm } from "../lib/distance";
@@ -13,14 +15,23 @@ import type { CargoType } from "../types";
 
 const emptyPlace: PlaceValue = { address: "" };
 
+type AddressField = "pickup" | "dropoff";
+
 export default function OnDemandBooking() {
   const { pricing, productTypes } = useConfig();
   const { createBooking } = useData();
 
+  // Draft mirrors what's typed/selected in the input; the confirmed value is only
+  // committed once the user accepts the "Confirm address" popup for a real selection.
+  const [pickupDraft, setPickupDraft] = useState<PlaceValue>(emptyPlace);
+  const [dropoffDraft, setDropoffDraft] = useState<PlaceValue>(emptyPlace);
   const [pickup, setPickup] = useState<PlaceValue>(emptyPlace);
   const [dropoff, setDropoff] = useState<PlaceValue>(emptyPlace);
+  const [pendingConfirm, setPendingConfirm] = useState<{ field: AddressField; place: PlaceValue } | null>(null);
+
   const [productType, setProductType] = useState<"standard" | "medical">("standard");
   const [manualDistance, setManualDistance] = useState("");
+  const [routeDistanceKm, setRouteDistanceKm] = useState<number | null>(null);
   const [result, setResult] = useState<{ distanceKm: number; fare: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,6 +44,33 @@ export default function OnDemandBooking() {
 
   const canGeolocate = Boolean(pickup.lat && pickup.lng && dropoff.lat && dropoff.lng);
 
+  function handleFieldChange(field: AddressField, place: PlaceValue) {
+    const setDraft = field === "pickup" ? setPickupDraft : setDropoffDraft;
+    setDraft(place);
+    if (place.lat && place.lng) {
+      // A real suggestion was selected (not free typing) — ask the user to confirm it.
+      setPendingConfirm({ field, place });
+    }
+  }
+
+  function confirmPendingAddress() {
+    if (!pendingConfirm) return;
+    const { field, place } = pendingConfirm;
+    if (field === "pickup") setPickup(place);
+    else setDropoff(place);
+    setRouteDistanceKm(null);
+    setPendingConfirm(null);
+  }
+
+  function cancelPendingAddress() {
+    if (!pendingConfirm) return;
+    const { field } = pendingConfirm;
+    // Revert the visible input back to the last confirmed address.
+    if (field === "pickup") setPickupDraft(pickup);
+    else setDropoffDraft(dropoff);
+    setPendingConfirm(null);
+  }
+
   function handleCalculate() {
     setError(null);
     setResult(null);
@@ -40,12 +78,14 @@ export default function OnDemandBooking() {
     setBookedTracking(null);
 
     if (!pickup.address || !dropoff.address) {
-      setError("Enter both a pickup and drop-off address.");
+      setError("Select and confirm both a pickup and drop-off address.");
       return;
     }
 
     let distanceKm: number;
-    if (canGeolocate) {
+    if (routeDistanceKm) {
+      distanceKm = routeDistanceKm;
+    } else if (canGeolocate) {
       distanceKm = haversineKm(pickup.lat!, pickup.lng!, dropoff.lat!, dropoff.lng!);
     } else if (manualDistance) {
       distanceKm = Number(manualDistance);
@@ -109,14 +149,22 @@ export default function OnDemandBooking() {
         <div className="card space-y-6">
           <div>
             <span className="mb-1.5 block text-sm font-medium text-gray-700">Pickup Address</span>
-            <AddressAutocompleteInput placeholder="Search pickup address in the Philippines" value={pickup} onChange={setPickup} />
+            <AddressAutocompleteInput
+              placeholder="Search pickup address in the Philippines"
+              value={pickupDraft}
+              onChange={(place) => handleFieldChange("pickup", place)}
+            />
           </div>
 
           <hr className="border-lbc-border" />
 
           <div>
             <span className="mb-1.5 block text-sm font-medium text-gray-700">Drop-off Address</span>
-            <AddressAutocompleteInput placeholder="Search drop-off address" value={dropoff} onChange={setDropoff} />
+            <AddressAutocompleteInput
+              placeholder="Search drop-off address"
+              value={dropoffDraft}
+              onChange={(place) => handleFieldChange("dropoff", place)}
+            />
           </div>
 
           {!canGeolocate && (pickup.address || dropoff.address) && (
@@ -135,6 +183,17 @@ export default function OnDemandBooking() {
                 Pick an address from the dropdown suggestions to auto-calculate distance, or enter it manually.
               </span>
             </label>
+          )}
+
+          {canGeolocate && (
+            <div>
+              <span className="mb-1.5 block text-sm font-medium text-gray-700">Route</span>
+              <RouteMap
+                origin={{ lat: pickup.lat!, lng: pickup.lng! }}
+                destination={{ lat: dropoff.lat!, lng: dropoff.lng! }}
+                onRouteComputed={setRouteDistanceKm}
+              />
+            </div>
           )}
 
           <div>
@@ -246,6 +305,15 @@ export default function OnDemandBooking() {
           </div>
         )}
       </div>
+
+      {pendingConfirm && (
+        <ConfirmAddressModal
+          label={pendingConfirm.field === "pickup" ? "Pickup Address" : "Drop-off Address"}
+          address={pendingConfirm.place.address}
+          onConfirm={confirmPendingAddress}
+          onCancel={cancelPendingAddress}
+        />
+      )}
     </div>
   );
 }

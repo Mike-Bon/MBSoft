@@ -101,3 +101,18 @@ export interface ProductType {
   description: string;
   active: boolean;
 }
+
+export interface Invoice {
+  id: string;
+  userId: string;
+  invoiceNumber: string;
+  periodMonth: number;
+  periodYear: number;
+  totalSales: number;
+  vat: number;
+  vatableSales: number;
+  withholdingTax: number;
+  totalAmountDue: number;
+  bookingCount: number;
+  createdAt: string;
+}

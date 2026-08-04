@@ -1,7 +1,23 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
-import type { Booking, Profile } from "../types";
+import type { Booking, Invoice, Profile } from "../types";
 import { formatCurrency, formatDate, formatDateTime } from "./utils";
+import { pesosToWords } from "./numberToWords";
+
+const MONTH_NAMES = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
 
 function addLetterhead(doc: jsPDF, title: string) {
   doc.setFillColor(208, 2, 27);
@@ -190,6 +206,146 @@ export function generatePodBatchPdf(bookings: Booking[], profile: Profile): jsPD
     headStyles: { fillColor: [208, 2, 27] },
     styles: { fontSize: 8 },
   });
+
+  return doc;
+}
+
+export function generateBillingInvoicePdf(invoice: Invoice, bookings: Booking[], profile: Profile): jsPDF {
+  const doc = new jsPDF();
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(16);
+  doc.text("BILLING INVOICE", 105, 16, { align: "center" });
+
+  // From (LBC Express) box
+  doc.setDrawColor(20, 20, 20);
+  doc.rect(14, 22, 92, 42);
+  doc.setFillColor(208, 2, 27);
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(9);
+  doc.text("LBC EXPRESS, INC.", 18, 30);
+  doc.setTextColor(20, 20, 20);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7.5);
+  doc.text(doc.splitTextToSize("CEBU IT PARK, V. PADRIGA ST., APAS, CEBU CITY, CEBU", 84), 18, 36);
+  doc.text("TEL. NO.: -", 18, 44);
+  doc.text("VAT REG TIN: 000-782-140-01569", 18, 49);
+  doc.text("MIN: 0", 18, 54);
+  doc.text(`SN: ${invoice.invoiceNumber.slice(-14)}`, 18, 59);
+
+  // To (Invoice No. / customer) box
+  doc.rect(108, 22, 88, 42);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  doc.text(`Invoice No.: ${invoice.invoiceNumber}`, 112, 29);
+  doc.line(108, 32, 196, 32);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.text("Name:", 112, 38);
+  doc.text(doc.splitTextToSize(profile.name, 62), 132, 38);
+  doc.text("Address:", 112, 44);
+  doc.text(
+    doc.splitTextToSize(`${profile.address.street}, ${profile.address.barangay}, ${profile.address.city}, ${profile.address.province}`, 60),
+    132,
+    44
+  );
+  doc.text("TIN:", 112, 59);
+  doc.text(profile.tinNumber || "—", 132, 59);
+
+  doc.setFontSize(9);
+  doc.text(`DATE: ${formatDate(invoice.createdAt)}`, 14, 72);
+
+  // Particulars: one row per day within the billing period
+  const byDate = new Map<string, { qty: number; amount: number }>();
+  for (const b of bookings) {
+    const key = formatDate(b.createdAt);
+    const entry = byDate.get(key) || { qty: 0, amount: 0 };
+    entry.qty += 1;
+    entry.amount += b.charge;
+    byDate.set(key, entry);
+  }
+  const rows = Array.from(byDate.entries()).sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime());
+
+  autoTable(doc, {
+    startY: 77,
+    head: [["PARTICULARS", "QTY", "UNIT COST", "AMOUNT"]],
+    body: [
+      [
+        {
+          content: `This is to bill you for the service rendered for the period of ${MONTH_NAMES[invoice.periodMonth - 1]} ${invoice.periodYear}.`,
+          colSpan: 4,
+          styles: { fontStyle: "italic", textColor: [100, 100, 100] },
+        },
+      ],
+      ...rows.map(([date, { qty, amount }]) => [date, String(qty), "N/A", amount.toFixed(2)]),
+    ],
+    headStyles: { fillColor: [230, 230, 230], textColor: [20, 20, 20] },
+    columnStyles: { 1: { halign: "center" }, 2: { halign: "center" }, 3: { halign: "right" } },
+    styles: { fontSize: 8.5 },
+  });
+
+  const afterTable = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 6;
+
+  doc.setFontSize(8.5);
+  doc.setFont("helvetica", "normal");
+  doc.text("VATABLE SALES:", 16, afterTable);
+  doc.text(invoice.vatableSales.toFixed(2), 70, afterTable, { align: "right" });
+  doc.text("VAT:", 16, afterTable + 5);
+  doc.text(invoice.vat.toFixed(2), 70, afterTable + 5, { align: "right" });
+  doc.text("VAT EXEMPT:", 16, afterTable + 10);
+  doc.text("0.00", 70, afterTable + 10, { align: "right" });
+  doc.text("ZERO-RATED SALES:", 16, afterTable + 15);
+  doc.text("0.00", 70, afterTable + 15, { align: "right" });
+
+  doc.text("TOTAL SALES (VAT Inclusive):", 130, afterTable);
+  doc.text(invoice.totalSales.toFixed(2), 196, afterTable, { align: "right" });
+  doc.text("LESS VAT:", 130, afterTable + 5);
+  doc.text(invoice.vat.toFixed(2), 196, afterTable + 5, { align: "right" });
+  doc.text("NET OF VAT:", 130, afterTable + 10);
+  doc.text(invoice.vatableSales.toFixed(2), 196, afterTable + 10, { align: "right" });
+  doc.text("ADD VAT:", 130, afterTable + 15);
+  doc.text(invoice.vat.toFixed(2), 196, afterTable + 15, { align: "right" });
+  doc.text("LESS WITHHOLDING TAX:", 130, afterTable + 20);
+  doc.text(invoice.withholdingTax.toFixed(2), 196, afterTable + 20, { align: "right" });
+  doc.setFont("helvetica", "bold");
+  doc.line(150, afterTable + 22, 196, afterTable + 22);
+  doc.text("TOTAL AMOUNT DUE:", 130, afterTable + 27);
+  doc.text(invoice.totalAmountDue.toFixed(2), 196, afterTable + 27, { align: "right" });
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.5);
+  doc.text(`Amount in Words: ${pesosToWords(invoice.totalAmountDue)}`, 105, afterTable + 37, {
+    align: "center",
+    maxWidth: 180,
+  });
+
+  const paymentY = afterTable + 48;
+  doc.setFontSize(7.5);
+  doc.text(
+    "You may settle your payments directly to LBC EXPRESS, INC. bank account numbers stated below or through BDO Bills Payment System:",
+    14,
+    paymentY,
+    { maxWidth: 182 }
+  );
+  doc.text("Account Name: LBC EXPRESS, INC.     Account Type: CURRENT", 14, paymentY + 7);
+  doc.text("Account Number: AUB 73010000388 | PNB 151070002390", 14, paymentY + 12);
+
+  doc.setFont("helvetica", "bold");
+  doc.text("TERMS AND CONDITIONS:", 14, paymentY + 20);
+  doc.setFont("helvetica", "normal");
+  doc.text(
+    "Please examine your invoice and SOA immediately upon receipt. If no error is reported within 7 days, the amount will be considered " +
+      "correct. Cash Payment upon presentation of this bill unless previously arranged. Interest of two percent (2%) per month will be " +
+      "charged on all overdue accounts after thirty (30) days.",
+    14,
+    paymentY + 25,
+    { maxWidth: 182 }
+  );
+
+  doc.setFontSize(7);
+  doc.setTextColor(120, 120, 120);
+  doc.text("NOTE: This is a system-generated document under Computerized Accounting System. Signature is not required if there is no alteration.", 14, paymentY + 45);
+  doc.text(`Billed shipments: ${invoice.bookingCount} · Generated ${formatDateTime(invoice.createdAt)}`, 14, paymentY + 51);
 
   return doc;
 }
