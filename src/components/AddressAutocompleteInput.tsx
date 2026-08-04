@@ -35,9 +35,9 @@ export default function AddressAutocompleteInput({
 
   const inputEl = (
     <div className="relative">
-      <MapPin className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-lbc-red" />
+      <MapPin className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-lbc-red lg:left-3.5 lg:h-4 lg:w-4" />
       <input
-        className="input pl-10"
+        className="input rounded-2xl py-3.5 pl-11 text-base shadow-sm lg:rounded-lg lg:py-2.5 lg:pl-10 lg:text-sm lg:shadow-none"
         placeholder={placeholder}
         value={value.address}
         onChange={(e) => onChange({ address: e.target.value, lat: undefined, lng: undefined })}

@@ -6,6 +6,7 @@ import AddressFields from "../../components/AddressFields";
 import FileUploadField from "../../components/FileUploadField";
 import { LiabilityDisclaimer } from "../../components/DisclaimerNote";
 import { isValidMobile } from "../../lib/utils";
+import { useIsMobile } from "../../hooks/useIsMobile";
 import type { Address } from "../../types";
 
 const emptyAddress: Address = { province: "", city: "", barangay: "", street: "", houseNumber: "", landmark: "" };
@@ -13,6 +14,7 @@ const emptyAddress: Address = { province: "", city: "", barangay: "", street: ""
 export default function RegisterIndividual() {
   const { signUp } = useAuth();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
 
   const [name, setName] = useState("");
   const [address, setAddress] = useState<Address>(emptyAddress);
@@ -47,7 +49,7 @@ export default function RegisterIndividual() {
     setSubmitting(true);
     try {
       await signUp(payload);
-      navigate("/dashboard");
+      navigate(isMobile ? "/booking/on-demand" : "/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Registration failed.");
     } finally {

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import {
   LayoutGrid,
@@ -13,6 +14,8 @@ import {
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { classNames } from "../lib/utils";
+import BottomNav from "./BottomNav";
+import MobileMenuSheet from "./MobileMenuSheet";
 
 const NAV_ITEMS = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutGrid },
@@ -26,33 +29,36 @@ const NAV_ITEMS = [
 
 export default function Layout() {
   const { signOut, profile } = useAuth();
+  const [menuOpen, setMenuOpen] = useState(false);
 
   return (
     <div className="flex h-screen flex-col bg-lbc-bg">
-      <header className="flex h-16 shrink-0 items-center justify-between bg-lbc-red px-6 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/15">
-            <Truck className="h-6 w-6 text-white" />
+      <header className="flex h-16 shrink-0 items-center justify-between bg-lbc-red px-4 shadow-sm sm:px-6">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/15 sm:h-10 sm:w-10">
+            <Truck className="h-5 w-5 text-white sm:h-6 sm:w-6" />
           </div>
-          <div className="leading-tight">
-            <p className="text-lg font-extrabold text-white">LBC Express</p>
-            <p className="text-[11px] font-semibold tracking-wider text-white/80">BOOKING PORTAL</p>
+          <div className="min-w-0 leading-tight">
+            <p className="truncate text-base font-extrabold text-white sm:text-lg">LBC Express</p>
+            <p className="hidden text-[11px] font-semibold tracking-wider text-white/80 sm:block">BOOKING PORTAL</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="rounded-full bg-white/15 px-4 py-1.5 text-sm font-medium text-white">Philippines</span>
+        <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+          <span className="hidden rounded-full bg-white/15 px-4 py-1.5 text-sm font-medium text-white sm:inline-flex">
+            Philippines
+          </span>
           <button
             onClick={() => signOut()}
-            className="flex items-center gap-2 rounded-full bg-white px-4 py-1.5 text-sm font-semibold text-lbc-red transition hover:bg-lbc-red-light"
+            className="flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-sm font-semibold text-lbc-red transition hover:bg-lbc-red-light sm:px-4"
           >
             <LogOut className="h-4 w-4" />
-            Sign out
+            <span className="hidden sm:inline">Sign out</span>
           </button>
         </div>
       </header>
 
       <div className="flex min-h-0 flex-1">
-        <aside className="flex w-64 shrink-0 flex-col justify-between border-r border-lbc-border bg-white">
+        <aside className="hidden w-64 shrink-0 flex-col justify-between border-r border-lbc-border bg-white lg:flex">
           <nav className="flex flex-col gap-1 p-3">
             {NAV_ITEMS.map(({ to, label, icon: Icon }) => (
               <NavLink
@@ -92,12 +98,15 @@ export default function Layout() {
           </div>
         </aside>
 
-        <main className="min-w-0 flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-6xl px-8 py-8">
+        <main className="min-w-0 flex-1 overflow-y-auto pb-20 lg:pb-0">
+          <div className="mx-auto max-w-6xl px-4 py-6 sm:px-8 sm:py-8">
             <Outlet />
           </div>
         </main>
       </div>
+
+      <BottomNav onMenuClick={() => setMenuOpen(true)} menuOpen={menuOpen} />
+      {menuOpen && <MobileMenuSheet onClose={() => setMenuOpen(false)} />}
     </div>
   );
 }

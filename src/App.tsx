@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { useIsMobile } from "./hooks/useIsMobile";
 import { MapsProvider } from "./context/MapsContext";
 import { DataProvider } from "./context/DataContext";
 import { ConfigProvider } from "./context/ConfigContext";
@@ -20,7 +21,9 @@ import Administration from "./pages/Administration";
 
 function RedirectRoot() {
   const { session } = useAuth();
-  return <Navigate to={session ? "/dashboard" : "/login"} replace />;
+  const isMobile = useIsMobile();
+  if (!session) return <Navigate to="/login" replace />;
+  return <Navigate to={isMobile ? "/booking/on-demand" : "/dashboard"} replace />;
 }
 
 export default function App() {

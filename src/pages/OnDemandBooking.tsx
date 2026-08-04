@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Bike, Calculator, CheckCircle2, Clock, Route as RouteIcon, Stethoscope } from "lucide-react";
+import { Bike, Calculator, CheckCircle2, Clock, MapPinned, Route as RouteIcon, Stethoscope } from "lucide-react";
 import PageHeader from "../components/PageHeader";
 import AddressAutocompleteInput, { type PlaceValue } from "../components/AddressAutocompleteInput";
 import ConfirmAddressModal from "../components/ConfirmAddressModal";
@@ -7,6 +7,7 @@ import RouteMap, { type RouteResult } from "../components/RouteMap";
 import { useConfig } from "../context/ConfigContext";
 import { useData } from "../context/DataContext";
 import { haversineKm } from "../lib/distance";
+import { geocodeAddress } from "../lib/geocode";
 import { calculateFare, estimateDurationMinutes, vehicleToPricingConfig } from "../lib/pricingEngine";
 import { placeToAddress } from "../lib/parsePlace";
 import { formatCurrency, generateTrackingNumber, isValidMobile } from "../lib/utils";
@@ -20,7 +21,7 @@ type AddressField = "pickup" | "dropoff";
 
 export default function OnDemandBooking() {
   const { vehicles, productTypes } = useConfig();
-  const { createBooking } = useData();
+  const { createBooking, recurringShipments } = useData();
 
   // Only vehicles marked visible are ever offered to customers — for MVP that's
   // just Motorcycle, but enabling another vehicle from Administration is all it
@@ -81,6 +82,27 @@ export default function OnDemandBooking() {
     if (field === "pickup") setPickupDraft(pickup);
     else setDropoffDraft(dropoff);
     setPendingConfirm(null);
+  }
+
+  // Recent-destination quick picks (mobile) — it's the customer's own saved data,
+  // so it commits straight to the confirmed destination (no confirm popup), with a
+  // best-effort geocode for map/route support and a graceful manual-entry fallback.
+  async function handleQuickPick(shipment: (typeof recurringShipments)[number]) {
+    const addr = shipment.consignee.address;
+    const addressText = [addr.houseNumber, addr.street, addr.barangay, addr.city, addr.province]
+      .filter(Boolean)
+      .join(", ");
+    const place: PlaceValue = { address: addressText };
+    setDropoffDraft(place);
+    setDropoff(place);
+    setRoute(null);
+
+    const coords = await geocodeAddress(addressText);
+    if (coords) {
+      const geocoded: PlaceValue = { address: addressText, ...coords };
+      setDropoffDraft(geocoded);
+      setDropoff(geocoded);
+    }
   }
 
   function handleCalculate() {
@@ -168,11 +190,26 @@ export default function OnDemandBooking() {
   }
 
   return (
-    <div>
+    <div className="relative">
+      {/* Center-screen 75th anniversary watermark — mobile only, decorative */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-x-0 top-16 bottom-20 z-0 flex items-center justify-center lg:hidden"
+      >
+        <img
+          src="/lbc-75-anniversary.png"
+          alt=""
+          className="h-64 w-64 object-contain opacity-10"
+          onError={(e) => {
+            e.currentTarget.style.display = "none";
+          }}
+        />
+      </div>
+
       <PageHeader title="Courier Fare Calculator" subtitle="Know your delivery price instantly." />
 
-      <div className="mx-auto max-w-2xl">
-        <div className="card space-y-6">
+      <div className="relative z-10 mx-auto max-w-2xl">
+        <div className="space-y-6 rounded-2xl bg-transparent p-0 lg:border lg:border-lbc-border lg:bg-white lg:p-6 lg:shadow-sm">
           <div>
             <span className="mb-1.5 block text-sm font-medium text-gray-700">Pickup Address</span>
             <AddressAutocompleteInput
@@ -182,7 +219,7 @@ export default function OnDemandBooking() {
             />
           </div>
 
-          <hr className="border-lbc-border" />
+          <hr className="hidden border-lbc-border lg:block" />
 
           <div>
             <span className="mb-1.5 block text-sm font-medium text-gray-700">Drop-off Address</span>
@@ -192,6 +229,22 @@ export default function OnDemandBooking() {
               onChange={(place) => handleFieldChange("dropoff", place)}
             />
           </div>
+
+          {recurringShipments.length > 0 && (
+            <div className="-mt-2 flex flex-wrap gap-2 lg:hidden">
+              {recurringShipments.slice(0, 4).map((r) => (
+                <button
+                  key={r.id}
+                  type="button"
+                  onClick={() => handleQuickPick(r)}
+                  className="flex items-center gap-1.5 rounded-full border border-lbc-border bg-white px-3 py-1.5 text-xs font-medium text-gray-600 transition hover:border-lbc-red hover:text-lbc-red"
+                >
+                  <MapPinned className="h-3.5 w-3.5 text-gray-400" />
+                  {r.label || r.consignee.name} · {r.consignee.address.city}
+                </button>
+              ))}
+            </div>
+          )}
 
           {canGeolocate && (
             <RouteMap
@@ -248,7 +301,7 @@ export default function OnDemandBooking() {
                       key={p.id}
                       onClick={() => setProductType(key)}
                       className={classNames(
-                        "flex items-start gap-3 rounded-xl border p-4 text-left transition",
+                        "flex min-w-0 items-start gap-3 rounded-xl border p-4 text-left transition",
                         selected ? "border-lbc-red bg-lbc-red-light" : "border-lbc-border hover:border-gray-300"
                       )}
                     >
@@ -260,10 +313,14 @@ export default function OnDemandBooking() {
                       >
                         <Icon className="h-5 w-5" />
                       </div>
-                      <div>
-                        <p className="flex items-center gap-2 text-sm font-bold text-gray-900">
+                      <div className="min-w-0">
+                        <p className="flex flex-wrap items-center gap-1.5 text-sm font-bold text-gray-900">
                           {p.name}
-                          {selected && <span className="rounded-full bg-lbc-red px-2 py-0.5 text-[10px] font-semibold text-white">Selected</span>}
+                          {selected && (
+                            <span className="rounded-full bg-lbc-red px-2 py-0.5 text-[10px] font-semibold text-white">
+                              Selected
+                            </span>
+                          )}
                         </p>
                         <p className="mt-0.5 text-xs text-gray-500">{p.description}</p>
                       </div>
@@ -273,7 +330,7 @@ export default function OnDemandBooking() {
             </div>
           </div>
 
-          <div className="flex items-center justify-between rounded-lg border border-lbc-border bg-lbc-bg px-4 py-3">
+          <div className="flex items-center justify-between rounded-lg border border-lbc-border bg-white px-4 py-3 shadow-sm lg:bg-lbc-bg lg:shadow-none">
             <span className="text-sm text-gray-600">Delivery vehicle</span>
             <span className="flex items-center gap-2 text-sm font-bold text-gray-900">
               <Bike className="h-4 w-4" /> {vehicle?.name || "Motorcycle"}

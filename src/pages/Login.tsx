@@ -1,11 +1,13 @@
 import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useIsMobile } from "../hooks/useIsMobile";
 import AuthShell from "./AuthShell";
 
 export default function Login() {
   const { signIn } = useAuth();
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -17,7 +19,7 @@ export default function Login() {
     setSubmitting(true);
     try {
       await signIn(email, password);
-      navigate("/dashboard");
+      navigate(isMobile ? "/booking/on-demand" : "/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to sign in.");
     } finally {
