@@ -1,0 +1,755 @@
+{
+  "NCR": {
+    "NCR": {
+      "np_reg": 95,
+      "np_xl": 130,
+      "np_ss": 165,
+      "vpouch": 180,
+      "np_small": 39,
+      "np_medium": 150,
+      "np_large": 226,
+      "kb_mini": 150,
+      "kb_small": 226,
+      "kb_slim": 226,
+      "kb_medium": 375,
+      "kb_large": 750,
+      "kb_xl": 1425,
+      "gen_cargo": [
+        226,
+        75
+      ]
+    },
+    "NLA": {
+      "np_reg": 130,
+      "np_xl": 170,
+      "np_ss": 200,
+      "vpouch": 220,
+      "np_small": 49,
+      "np_medium": 185,
+      "np_large": 300,
+      "kb_mini": 185,
+      "kb_small": 300,
+      "kb_slim": 300,
+      "kb_medium": 480,
+      "kb_large": 960,
+      "kb_xl": 1824,
+      "gen_cargo": [
+        300,
+        98
+      ]
+    },
+    "SLA": {
+      "np_reg": 130,
+      "np_xl": 170,
+      "np_ss": 200,
+      "vpouch": 220,
+      "np_small": 49,
+      "np_medium": 185,
+      "np_large": 300,
+      "kb_mini": 185,
+      "kb_small": 300,
+      "kb_slim": 300,
+      "kb_medium": 480,
+      "kb_large": 960,
+      "kb_xl": 1824,
+      "gen_cargo": [
+        300,
+        98
+      ]
+    },
+    "VIS": {
+      "np_reg": 140,
+      "np_xl": 180,
+      "np_ss": 215,
+      "vpouch": 230,
+      "np_small": 79,
+      "np_medium": 205,
+      "np_large": 320,
+      "kb_mini": 205,
+      "kb_small": 320,
+      "kb_slim": 320,
+      "kb_medium": 515,
+      "kb_large": 1030,
+      "kb_xl": 1957,
+      "gen_cargo": [
+        320,
+        105
+      ]
+    },
+    "MIN": {
+      "np_reg": 140,
+      "np_xl": 180,
+      "np_ss": 215,
+      "vpouch": 230,
+      "np_small": 79,
+      "np_medium": 205,
+      "np_large": 320,
+      "kb_mini": 205,
+      "kb_small": 320,
+      "kb_slim": 320,
+      "kb_medium": 515,
+      "kb_large": 1030,
+      "kb_xl": 1957,
+      "gen_cargo": [
+        320,
+        105
+      ]
+    },
+    "ISLANDER": {
+      "np_reg": 155,
+      "np_xl": 190,
+      "np_ss": 225,
+      "vpouch": 240,
+      "np_small": 84,
+      "np_medium": 215,
+      "np_large": 330,
+      "kb_mini": 215,
+      "kb_small": 330,
+      "kb_slim": 330,
+      "kb_medium": 530,
+      "kb_large": 1060,
+      "kb_xl": 2014,
+      "gen_cargo": [
+        330,
+        110
+      ]
+    }
+  },
+  "NLA": {
+    "NCR": {
+      "np_reg": 135,
+      "np_xl": 170,
+      "np_ss": 205,
+      "vpouch": 220,
+      "np_small": 49,
+      "np_medium": 185,
+      "np_large": 300,
+      "kb_mini": 185,
+      "kb_small": 300,
+      "kb_slim": 300,
+      "kb_medium": 485,
+      "kb_large": 970,
+      "kb_xl": 1843,
+      "gen_cargo": [
+        300,
+        97
+      ]
+    },
+    "NLA": {
+      "np_reg": 145,
+      "np_xl": 180,
+      "np_ss": 215,
+      "vpouch": 230,
+      "np_small": 49,
+      "np_medium": 195,
+      "np_large": 310,
+      "kb_mini": 195,
+      "kb_small": 310,
+      "kb_slim": 310,
+      "kb_medium": 500,
+      "kb_large": 1000,
+      "kb_xl": 1900,
+      "gen_cargo": [
+        310,
+        102
+      ]
+    },
+    "SLA": {
+      "np_reg": 145,
+      "np_xl": 180,
+      "np_ss": 215,
+      "vpouch": 230,
+      "np_small": 49,
+      "np_medium": 195,
+      "np_large": 310,
+      "kb_mini": 195,
+      "kb_small": 310,
+      "kb_slim": 310,
+      "kb_medium": 500,
+      "kb_large": 1000,
+      "kb_xl": 1900,
+      "gen_cargo": [
+        310,
+        102
+      ]
+    },
+    "VIS": {
+      "np_reg": 160,
+      "np_xl": 195,
+      "np_ss": 230,
+      "vpouch": 245,
+      "np_small": 79,
+      "np_medium": 215,
+      "np_large": 330,
+      "kb_mini": 215,
+      "kb_small": 330,
+      "kb_slim": 330,
+      "kb_medium": 530,
+      "kb_large": 1060,
+      "kb_xl": 2014,
+      "gen_cargo": [
+        330,
+        108
+      ]
+    },
+    "MIN": {
+      "np_reg": 160,
+      "np_xl": 195,
+      "np_ss": 230,
+      "vpouch": 245,
+      "np_small": 79,
+      "np_medium": 215,
+      "np_large": 330,
+      "kb_mini": 215,
+      "kb_small": 330,
+      "kb_slim": 330,
+      "kb_medium": 530,
+      "kb_large": 1060,
+      "kb_xl": 2014,
+      "gen_cargo": [
+        330,
+        108
+      ]
+    },
+    "ISLANDER": {
+      "np_reg": 170,
+      "np_xl": 205,
+      "np_ss": 240,
+      "vpouch": 255,
+      "np_small": 84,
+      "np_medium": 225,
+      "np_large": 340,
+      "kb_mini": 225,
+      "kb_small": 340,
+      "kb_slim": 340,
+      "kb_medium": 550,
+      "kb_large": 1100,
+      "kb_xl": 2090,
+      "gen_cargo": [
+        340,
+        112
+      ]
+    }
+  },
+  "SLA": {
+    "NCR": {
+      "np_reg": 135,
+      "np_xl": 170,
+      "np_ss": 205,
+      "vpouch": 220,
+      "np_small": 49,
+      "np_medium": 185,
+      "np_large": 300,
+      "kb_mini": 185,
+      "kb_small": 300,
+      "kb_slim": 300,
+      "kb_medium": 485,
+      "kb_large": 970,
+      "kb_xl": 1843,
+      "gen_cargo": [
+        300,
+        97
+      ]
+    },
+    "NLA": {
+      "np_reg": 145,
+      "np_xl": 180,
+      "np_ss": 215,
+      "vpouch": 230,
+      "np_small": 49,
+      "np_medium": 195,
+      "np_large": 310,
+      "kb_mini": 195,
+      "kb_small": 310,
+      "kb_slim": 310,
+      "kb_medium": 500,
+      "kb_large": 1000,
+      "kb_xl": 1900,
+      "gen_cargo": [
+        310,
+        102
+      ]
+    },
+    "SLA": {
+      "np_reg": 145,
+      "np_xl": 180,
+      "np_ss": 215,
+      "vpouch": 230,
+      "np_small": 49,
+      "np_medium": 195,
+      "np_large": 310,
+      "kb_mini": 195,
+      "kb_small": 310,
+      "kb_slim": 310,
+      "kb_medium": 500,
+      "kb_large": 1000,
+      "kb_xl": 1900,
+      "gen_cargo": [
+        310,
+        102
+      ]
+    },
+    "VIS": {
+      "np_reg": 160,
+      "np_xl": 195,
+      "np_ss": 230,
+      "vpouch": 245,
+      "np_small": 79,
+      "np_medium": 215,
+      "np_large": 330,
+      "kb_mini": 215,
+      "kb_small": 330,
+      "kb_slim": 330,
+      "kb_medium": 530,
+      "kb_large": 1060,
+      "kb_xl": 2014,
+      "gen_cargo": [
+        330,
+        108
+      ]
+    },
+    "MIN": {
+      "np_reg": 160,
+      "np_xl": 195,
+      "np_ss": 230,
+      "vpouch": 245,
+      "np_small": 79,
+      "np_medium": 215,
+      "np_large": 330,
+      "kb_mini": 215,
+      "kb_small": 330,
+      "kb_slim": 330,
+      "kb_medium": 530,
+      "kb_large": 1060,
+      "kb_xl": 2014,
+      "gen_cargo": [
+        330,
+        108
+      ]
+    },
+    "ISLANDER": {
+      "np_reg": 170,
+      "np_xl": 205,
+      "np_ss": 240,
+      "vpouch": 255,
+      "np_small": 84,
+      "np_medium": 225,
+      "np_large": 340,
+      "kb_mini": 225,
+      "kb_small": 340,
+      "kb_slim": 340,
+      "kb_medium": 550,
+      "kb_large": 1100,
+      "kb_xl": 2090,
+      "gen_cargo": [
+        340,
+        112
+      ]
+    }
+  },
+  "VIS": {
+    "INTRA_PROVINCE": {
+      "np_reg": 95,
+      "np_xl": 130,
+      "np_ss": 165,
+      "vpouch": 180,
+      "np_small": 39,
+      "np_medium": 150,
+      "np_large": 226,
+      "kb_mini": 150,
+      "kb_small": 226,
+      "kb_slim": 226,
+      "kb_medium": 360,
+      "kb_large": 720,
+      "kb_xl": 1368,
+      "gen_cargo": [
+        226,
+        75
+      ]
+    },
+    "NCR": {
+      "np_reg": 145,
+      "np_xl": 180,
+      "np_ss": 215,
+      "vpouch": 230,
+      "np_small": 79,
+      "np_medium": 195,
+      "np_large": 310,
+      "kb_mini": 195,
+      "kb_small": 310,
+      "kb_slim": 310,
+      "kb_medium": 500,
+      "kb_large": 1000,
+      "kb_xl": 1900,
+      "gen_cargo": [
+        310,
+        102
+      ]
+    },
+    "NLA": {
+      "np_reg": 160,
+      "np_xl": 195,
+      "np_ss": 230,
+      "vpouch": 245,
+      "np_small": 79,
+      "np_medium": 215,
+      "np_large": 325,
+      "kb_mini": 215,
+      "kb_small": 325,
+      "kb_slim": 325,
+      "kb_medium": 530,
+      "kb_large": 1060,
+      "kb_xl": 2014,
+      "gen_cargo": [
+        325,
+        108
+      ]
+    },
+    "SLA": {
+      "np_reg": 160,
+      "np_xl": 195,
+      "np_ss": 230,
+      "vpouch": 245,
+      "np_small": 79,
+      "np_medium": 215,
+      "np_large": 325,
+      "kb_mini": 215,
+      "kb_small": 325,
+      "kb_slim": 325,
+      "kb_medium": 530,
+      "kb_large": 1060,
+      "kb_xl": 2014,
+      "gen_cargo": [
+        325,
+        108
+      ]
+    },
+    "VIS": {
+      "np_reg": 150,
+      "np_xl": 185,
+      "np_ss": 220,
+      "vpouch": 235,
+      "np_small": 49,
+      "np_medium": 200,
+      "np_large": 310,
+      "kb_mini": 200,
+      "kb_small": 310,
+      "kb_slim": 310,
+      "kb_medium": 505,
+      "kb_large": 1010,
+      "kb_xl": 1919,
+      "gen_cargo": [
+        310,
+        103
+      ]
+    },
+    "MIN": {
+      "np_reg": 160,
+      "np_xl": 195,
+      "np_ss": 230,
+      "vpouch": 245,
+      "np_small": 49,
+      "np_medium": 215,
+      "np_large": 330,
+      "kb_mini": 215,
+      "kb_small": 330,
+      "kb_slim": 330,
+      "kb_medium": 530,
+      "kb_large": 1060,
+      "kb_xl": 2014,
+      "gen_cargo": [
+        330,
+        108
+      ]
+    },
+    "ISLANDER": {
+      "np_reg": 170,
+      "np_xl": 205,
+      "np_ss": 240,
+      "vpouch": 255,
+      "np_small": 84,
+      "np_medium": 225,
+      "np_large": 340,
+      "kb_mini": 225,
+      "kb_small": 340,
+      "kb_slim": 340,
+      "kb_medium": 550,
+      "kb_large": 1100,
+      "kb_xl": 2090,
+      "gen_cargo": [
+        340,
+        112
+      ]
+    }
+  },
+  "MIN": {
+    "INTRA_PROVINCE": {
+      "np_reg": 95,
+      "np_xl": 130,
+      "np_ss": 165,
+      "vpouch": 180,
+      "np_small": 39,
+      "np_medium": 150,
+      "np_large": 226,
+      "kb_mini": 150,
+      "kb_small": 226,
+      "kb_slim": 226,
+      "kb_medium": 360,
+      "kb_large": 720,
+      "kb_xl": 1368,
+      "gen_cargo": [
+        226,
+        75
+      ]
+    },
+    "NCR": {
+      "np_reg": 145,
+      "np_xl": 180,
+      "np_ss": 215,
+      "vpouch": 230,
+      "np_small": 79,
+      "np_medium": 195,
+      "np_large": 310,
+      "kb_mini": 195,
+      "kb_small": 310,
+      "kb_slim": 310,
+      "kb_medium": 500,
+      "kb_large": 1000,
+      "kb_xl": 1900,
+      "gen_cargo": [
+        310,
+        102
+      ]
+    },
+    "NLA": {
+      "np_reg": 160,
+      "np_xl": 195,
+      "np_ss": 230,
+      "vpouch": 245,
+      "np_small": 79,
+      "np_medium": 215,
+      "np_large": 325,
+      "kb_mini": 215,
+      "kb_small": 325,
+      "kb_slim": 325,
+      "kb_medium": 530,
+      "kb_large": 1060,
+      "kb_xl": 2014,
+      "gen_cargo": [
+        325,
+        108
+      ]
+    },
+    "SLA": {
+      "np_reg": 160,
+      "np_xl": 195,
+      "np_ss": 230,
+      "vpouch": 245,
+      "np_small": 79,
+      "np_medium": 215,
+      "np_large": 325,
+      "kb_mini": 215,
+      "kb_small": 325,
+      "kb_slim": 325,
+      "kb_medium": 530,
+      "kb_large": 1060,
+      "kb_xl": 2014,
+      "gen_cargo": [
+        325,
+        108
+      ]
+    },
+    "VIS": {
+      "np_reg": 160,
+      "np_xl": 195,
+      "np_ss": 230,
+      "vpouch": 245,
+      "np_small": 49,
+      "np_medium": 215,
+      "np_large": 330,
+      "kb_mini": 215,
+      "kb_small": 330,
+      "kb_slim": 330,
+      "kb_medium": 530,
+      "kb_large": 1060,
+      "kb_xl": 2014,
+      "gen_cargo": [
+        330,
+        108
+      ]
+    },
+    "MIN": {
+      "np_reg": 150,
+      "np_xl": 185,
+      "np_ss": 220,
+      "vpouch": 235,
+      "np_small": 49,
+      "np_medium": 200,
+      "np_large": 310,
+      "kb_mini": 200,
+      "kb_small": 310,
+      "kb_slim": 310,
+      "kb_medium": 505,
+      "kb_large": 1010,
+      "kb_xl": 1919,
+      "gen_cargo": [
+        310,
+        103
+      ]
+    },
+    "ISLANDER": {
+      "np_reg": 170,
+      "np_xl": 205,
+      "np_ss": 240,
+      "vpouch": 255,
+      "np_small": 84,
+      "np_medium": 225,
+      "np_large": 340,
+      "kb_mini": 225,
+      "kb_small": 340,
+      "kb_slim": 340,
+      "kb_medium": 550,
+      "kb_large": 1100,
+      "kb_xl": 2090,
+      "gen_cargo": [
+        340,
+        112
+      ]
+    }
+  },
+  "ISLAND": {
+    "INTRA_PROVINCE": {
+      "np_reg": 95,
+      "np_xl": 130,
+      "np_ss": 165,
+      "vpouch": 180,
+      "np_small": 39,
+      "np_medium": 150,
+      "np_large": 226,
+      "kb_mini": 150,
+      "kb_small": 226,
+      "kb_slim": 226,
+      "kb_medium": 375,
+      "kb_large": 750,
+      "kb_xl": 1425,
+      "gen_cargo": [
+        226,
+        78
+      ]
+    },
+    "NCR": {
+      "np_reg": 155,
+      "np_xl": 190,
+      "np_ss": 225,
+      "vpouch": 240,
+      "np_small": 79,
+      "np_medium": 215,
+      "np_large": 330,
+      "kb_mini": 215,
+      "kb_small": 330,
+      "kb_slim": 330,
+      "kb_medium": 525,
+      "kb_large": 1050,
+      "kb_xl": 1995,
+      "gen_cargo": [
+        330,
+        108
+      ]
+    },
+    "NLA": {
+      "np_reg": 170,
+      "np_xl": 205,
+      "np_ss": 240,
+      "vpouch": 255,
+      "np_small": 84,
+      "np_medium": 225,
+      "np_large": 335,
+      "kb_mini": 225,
+      "kb_small": 335,
+      "kb_slim": 335,
+      "kb_medium": 550,
+      "kb_large": 1100,
+      "kb_xl": 2090,
+      "gen_cargo": [
+        335,
+        112
+      ]
+    },
+    "SLA": {
+      "np_reg": 170,
+      "np_xl": 205,
+      "np_ss": 240,
+      "vpouch": 255,
+      "np_small": 84,
+      "np_medium": 225,
+      "np_large": 335,
+      "kb_mini": 225,
+      "kb_small": 335,
+      "kb_slim": 335,
+      "kb_medium": 550,
+      "kb_large": 1100,
+      "kb_xl": 2090,
+      "gen_cargo": [
+        335,
+        112
+      ]
+    },
+    "VIS": {
+      "np_reg": 170,
+      "np_xl": 205,
+      "np_ss": 240,
+      "vpouch": 255,
+      "np_small": 79,
+      "np_medium": 225,
+      "np_large": 340,
+      "kb_mini": 225,
+      "kb_small": 340,
+      "kb_slim": 340,
+      "kb_medium": 550,
+      "kb_large": 1100,
+      "kb_xl": 2090,
+      "gen_cargo": [
+        340,
+        112
+      ]
+    },
+    "MIN": {
+      "np_reg": 170,
+      "np_xl": 205,
+      "np_ss": 240,
+      "vpouch": 255,
+      "np_small": 79,
+      "np_medium": 225,
+      "np_large": 340,
+      "kb_mini": 225,
+      "kb_small": 340,
+      "kb_slim": 340,
+      "kb_medium": 550,
+      "kb_large": 1100,
+      "kb_xl": 2090,
+      "gen_cargo": [
+        340,
+        112
+      ]
+    },
+    "ISLANDER": {
+      "np_reg": 175,
+      "np_xl": 210,
+      "np_ss": 245,
+      "vpouch": 260,
+      "np_small": 84,
+      "np_medium": 230,
+      "np_large": 344,
+      "kb_mini": 230,
+      "kb_small": 344,
+      "kb_slim": 344,
+      "kb_medium": 575,
+      "kb_large": 1150,
+      "kb_xl": 2185,
+      "gen_cargo": [
+        344,
+        115
+      ]
+    }
+  }
+}

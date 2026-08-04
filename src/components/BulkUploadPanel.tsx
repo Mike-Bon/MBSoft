@@ -4,10 +4,15 @@ import { Download, UploadCloud, AlertTriangle, CheckCircle2 } from "lucide-react
 import { useAuth } from "../context/AuthContext";
 import { useConfig } from "../context/ConfigContext";
 import { useData } from "../context/DataContext";
-import { calculateStandardRate, calculateOnDemandRateForParcel } from "../lib/rateCalculators";
+import { calculateOnDemandRateForParcel } from "../lib/rateCalculators";
+import { computeParcelFare } from "../lib/parcelPricingEngine";
+import { loadCoverage, type CoverageData } from "../lib/coverage";
+import { PRODUCT_LABEL, type ParcelProductKey } from "../data/lbcConstants";
 import { formatCurrency, generateTrackingNumber, isValidMobile } from "../lib/utils";
 import { LiabilityDisclaimer } from "./DisclaimerNote";
 import type { CargoType } from "../types";
+
+const PRODUCT_KEYS = Object.keys(PRODUCT_LABEL) as ParcelProductKey[];
 
 const TEMPLATE_HEADERS = [
   "Consignee Name",
@@ -19,7 +24,8 @@ const TEMPLATE_HEADERS = [
   "Landmark",
   "Contact Number",
   "Type of Cargo (standard / on_demand_standard / on_demand_medical)",
-  "Weight (kg, standard only)",
+  `Product SKU (standard only: ${PRODUCT_KEYS.join(" / ")})`,
+  "Weight (kg — required for gen_cargo, optional otherwise)",
 ];
 
 const TEMPLATE_SAMPLE = [
@@ -32,7 +38,8 @@ const TEMPLATE_SAMPLE = [
   "Near barangay hall",
   "09171234567",
   "standard",
-  "1",
+  "np_reg",
+  "",
 ];
 
 interface ParsedRow {
@@ -45,13 +52,21 @@ interface ParsedRow {
   landmark: string;
   contactNumber: string;
   cargoType: CargoType;
-  weightKg: number;
+  product: ParcelProductKey;
+  weightKg?: number;
   charge: number;
   distanceKm?: number;
   error?: string;
 }
 
 const MAX_ROWS = 100;
+
+/** Bulk rows are free-text province/city/barangay, so match against the real
+ * coverage dataset case-insensitively rather than requiring exact casing. */
+function matchCoverageKey(options: string[], text: string): string | undefined {
+  const needle = text.trim().toLowerCase();
+  return options.find((o) => o.toLowerCase() === needle);
+}
 
 export default function BulkUploadPanel() {
   const { profile } = useAuth();
@@ -65,11 +80,12 @@ export default function BulkUploadPanel() {
   const [parseError, setParseError] = useState<string | null>(null);
   const [agreed, setAgreed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [processing, setProcessing] = useState(false);
   const [success, setSuccess] = useState<number | null>(null);
 
   function downloadTemplate() {
     const ws = XLSX.utils.aoa_to_sheet([TEMPLATE_HEADERS, TEMPLATE_SAMPLE]);
-    ws["!cols"] = TEMPLATE_HEADERS.map(() => ({ wch: 22 }));
+    ws["!cols"] = TEMPLATE_HEADERS.map(() => ({ wch: 24 }));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Consignees");
     XLSX.writeFile(wb, "LBC-Bulk-Booking-Template.xlsx");
@@ -79,8 +95,9 @@ export default function BulkUploadPanel() {
     setParseError(null);
     setSuccess(null);
     setFileName(file.name);
+    setProcessing(true);
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
         const data = e.target?.result;
         const wb = XLSX.read(data, { type: "binary" });
@@ -97,15 +114,20 @@ export default function BulkUploadPanel() {
           setRows([]);
           return;
         }
-
         if (!profile) return;
+
+        let coverage: CoverageData | null = null;
+        const needsCoverage = json.some((r) => String(r["Type of Cargo (standard / on_demand_standard / on_demand_medical)"] ?? "").trim().toLowerCase() !== "on_demand_standard" && String(r["Type of Cargo (standard / on_demand_standard / on_demand_medical)"] ?? "").trim().toLowerCase() !== "on_demand_medical");
+        if (needsCoverage) {
+          coverage = await loadCoverage();
+        }
 
         const parsed: ParsedRow[] = json.map((r) => {
           const get = (key: string) => String(r[key] ?? "").trim();
           const name = get("Consignee Name");
-          const province = get("Province");
-          const city = get("City / Municipality");
-          const barangay = get("Barangay");
+          const provinceRaw = get("Province");
+          const cityRaw = get("City / Municipality");
+          const barangayRaw = get("Barangay");
           const street = get("Street");
           const houseNumber = get("House Number");
           const landmark = get("Landmark");
@@ -113,24 +135,62 @@ export default function BulkUploadPanel() {
           const rawCargo = get("Type of Cargo (standard / on_demand_standard / on_demand_medical)").toLowerCase();
           const cargoType: CargoType =
             rawCargo === "on_demand_standard" || rawCargo === "on_demand_medical" ? (rawCargo as CargoType) : "standard";
-          const weightKg = Number(get("Weight (kg, standard only)")) || 1;
+          const rawProduct = get(`Product SKU (standard only: ${PRODUCT_KEYS.join(" / ")})`).toLowerCase();
+          const product: ParcelProductKey = (PRODUCT_KEYS as string[]).includes(rawProduct) ? (rawProduct as ParcelProductKey) : "np_reg";
+          const weightRaw = get("Weight (kg — required for gen_cargo, optional otherwise)");
+          const weightKg = weightRaw ? Number(weightRaw) : undefined;
 
           let error: string | undefined;
           if (!name) error = "Missing consignee name";
-          else if (!province || !city) error = "Missing province/city";
+          else if (!provinceRaw || !cityRaw) error = "Missing province/city";
           else if (!isValidMobile(contactNumber)) error = "Invalid contact number";
 
           let charge = 0;
           let distanceKm: number | undefined;
-          if (cargoType === "standard") {
-            charge = calculateStandardRate(profile.address.province, profile.address.city, province, city, weightKg);
-          } else {
+          let province = provinceRaw;
+          let city = cityRaw;
+          let barangay = barangayRaw;
+
+          if (!error && cargoType === "standard") {
+            if (!coverage) {
+              error = "Coverage data unavailable";
+            } else {
+              const matchedProvince = matchCoverageKey(Object.keys(coverage), provinceRaw);
+              const matchedCity = matchedProvince ? matchCoverageKey(Object.keys(coverage[matchedProvince]), cityRaw) : undefined;
+              const matchedBarangay =
+                matchedProvince && matchedCity ? matchCoverageKey(Object.keys(coverage[matchedProvince][matchedCity]), barangayRaw) : undefined;
+
+              if (!matchedProvince || !matchedCity || !matchedBarangay) {
+                error = "Could not match address to coverage data — check spelling";
+              } else {
+                province = matchedProvince;
+                city = matchedCity;
+                barangay = matchedBarangay;
+                const zone = coverage[matchedProvince][matchedCity][matchedBarangay];
+                const result = computeParcelFare({
+                  product,
+                  originProvince: profile.address.province,
+                  originCity: profile.address.city,
+                  destProvince: matchedProvince,
+                  destCity: matchedCity,
+                  destBarangay: matchedBarangay,
+                  destZone: zone,
+                  weightKg,
+                });
+                if (!result.serviceable) {
+                  error = result.blockReason || "Not serviceable";
+                } else {
+                  charge = result.finalFare;
+                }
+              }
+            }
+          } else if (!error) {
             const productType = cargoType === "on_demand_medical" ? "medical" : "standard";
             const result = calculateOnDemandRateForParcel(
               profile.address.province,
               profile.address.city,
-              province,
-              city,
+              provinceRaw,
+              cityRaw,
               productType,
               activeVehicle,
               productTypes
@@ -139,13 +199,30 @@ export default function BulkUploadPanel() {
             distanceKm = result.distanceKm;
           }
 
-          return { name, province, city, barangay, street, houseNumber, landmark, contactNumber, cargoType, weightKg, charge, distanceKm, error };
+          return {
+            name,
+            province,
+            city,
+            barangay,
+            street,
+            houseNumber,
+            landmark,
+            contactNumber,
+            cargoType,
+            product,
+            weightKg,
+            charge,
+            distanceKm,
+            error,
+          };
         });
 
         setRows(parsed);
       } catch {
         setParseError("Couldn't read this file. Make sure it's a .xlsx file exported from the template.");
         setRows([]);
+      } finally {
+        setProcessing(false);
       }
     };
     reader.readAsBinaryString(file);
@@ -179,6 +256,7 @@ export default function BulkUploadPanel() {
           distanceKm: r.distanceKm,
           charge: r.charge,
           status: "Booked",
+          parcelProductSku: r.cargoType === "standard" ? r.product : undefined,
         }))
       );
       setSuccess(validRows.length);
@@ -196,7 +274,10 @@ export default function BulkUploadPanel() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="font-bold text-gray-900">1. Download the Excel template</h3>
-            <p className="mt-0.5 text-sm text-gray-500">Fill in up to {MAX_ROWS} consignees, one per row.</p>
+            <p className="mt-0.5 text-sm text-gray-500">
+              Fill in up to {MAX_ROWS} consignees, one per row. For Standard cargo, Province/City/Barangay must match
+              real LBC coverage areas — Declared Value and General Cargo dimensions aren't supported via bulk upload.
+            </p>
           </div>
           <button type="button" onClick={downloadTemplate} className="btn-secondary">
             <Download className="h-4 w-4" />
@@ -213,7 +294,7 @@ export default function BulkUploadPanel() {
           className="mt-3 flex w-full items-center gap-3 rounded-lg border border-dashed border-lbc-border bg-lbc-bg px-4 py-4 text-left text-sm transition hover:border-lbc-red"
         >
           <UploadCloud className="h-5 w-5 shrink-0 text-gray-400" />
-          <span className="text-gray-500">{fileName || "Click to choose a .xlsx file"}</span>
+          <span className="text-gray-500">{processing ? "Processing…" : fileName || "Click to choose a .xlsx file"}</span>
         </button>
         <input
           ref={inputRef}
@@ -257,7 +338,7 @@ export default function BulkUploadPanel() {
                     <td className="px-3 py-2 text-gray-500">
                       {r.city}, {r.province}
                     </td>
-                    <td className="px-3 py-2 text-gray-500">{r.cargoType}</td>
+                    <td className="px-3 py-2 text-gray-500">{r.cargoType === "standard" ? PRODUCT_LABEL[r.product] : r.cargoType}</td>
                     <td className="px-3 py-2 font-semibold">{r.error ? "—" : formatCurrency(r.charge)}</td>
                     <td className="px-3 py-2">
                       {r.error ? (

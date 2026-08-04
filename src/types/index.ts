@@ -57,6 +57,9 @@ export interface Booking {
   distanceKm?: number;
   charge: number;
   status: ShipmentStatus;
+  /** LBC Traditional-channel product SKU (e.g. "np_reg", "kb_medium") for
+   * Standard cargo type bookings — see src/data/lbcConstants.ts PRODUCT_LABEL. */
+  parcelProductSku?: string;
   createdAt: string;
 }
 

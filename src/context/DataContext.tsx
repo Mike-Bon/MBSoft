@@ -33,6 +33,7 @@ function mapBookingRow(row: Record<string, unknown>): Booking {
     distanceKm: row.distance_km == null ? undefined : Number(row.distance_km),
     charge: Number(row.charge),
     status: row.status as ShipmentStatus,
+    parcelProductSku: (row.parcel_product_sku as string) || undefined,
     createdAt: row.created_at as string,
   };
 }
@@ -83,6 +84,7 @@ interface NewBookingInput {
   distanceKm?: number;
   charge: number;
   status?: ShipmentStatus;
+  parcelProductSku?: string;
 }
 
 interface DataContextValue {
@@ -161,6 +163,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         charge: input.charge,
         status: input.status || "Booked",
         destination_label: `${input.consignee.address.city}, ${input.consignee.address.province}`,
+        parcel_product_sku: input.parcelProductSku || null,
       }));
       const { data, error } = await supabase.from("bookings").insert(rows).select("*");
       if (error) throw error;

@@ -79,6 +79,7 @@ create table if not exists public.bookings (
   charge numeric not null default 0,
   status text not null default 'Booked',
   destination_label text,
+  parcel_product_sku text,
   created_at timestamptz not null default now()
 );
 

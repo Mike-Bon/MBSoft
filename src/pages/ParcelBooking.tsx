@@ -1,13 +1,13 @@
 import { useMemo, useState } from "react";
 import { Plus, BookmarkPlus, CheckCircle2 } from "lucide-react";
 import PageHeader from "../components/PageHeader";
-import ConsigneeRow, { emptyConsigneeRow, type ConsigneeRowValue } from "../components/ConsigneeRow";
+import ConsigneeRow, { emptyConsigneeRow, type ConsigneeRowValue, type StandardFareResult } from "../components/ConsigneeRow";
 import BulkUploadPanel from "../components/BulkUploadPanel";
 import { LiabilityDisclaimer } from "../components/DisclaimerNote";
 import { useAuth } from "../context/AuthContext";
 import { useConfig } from "../context/ConfigContext";
 import { useData } from "../context/DataContext";
-import { calculateStandardRate, calculateOnDemandRateForParcel } from "../lib/rateCalculators";
+import { calculateOnDemandRateForParcel } from "../lib/rateCalculators";
 import { formatCurrency, generateTrackingNumber } from "../lib/utils";
 import { classNames, isValidMobile } from "../lib/utils";
 
@@ -24,6 +24,7 @@ export default function ParcelBooking() {
 
   const [mode, setMode] = useState<Mode>("single");
   const [rows, setRows] = useState<ConsigneeRowValue[]>([emptyConsigneeRow(String(rowKeyCounter++))]);
+  const [standardResults, setStandardResults] = useState<Record<string, StandardFareResult>>({});
   const [agreed, setAgreed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -31,20 +32,14 @@ export default function ParcelBooking() {
   const [saveAsRecurring, setSaveAsRecurring] = useState(false);
 
   const rowCharges = useMemo(() => {
-    if (!profile) return rows.map(() => ({ charge: 0, distanceKm: undefined as number | undefined }));
+    if (!profile) return rows.map(() => ({ charge: 0, distanceKm: undefined as number | undefined, serviceable: false }));
     return rows.map((row) => {
       if (row.cargoType === "standard") {
-        const charge = calculateStandardRate(
-          profile.address.province,
-          profile.address.city,
-          row.address.province,
-          row.address.city,
-          row.weightKg
-        );
-        return { charge, distanceKm: undefined };
+        const result = standardResults[row.key];
+        return { charge: result?.charge ?? 0, distanceKm: undefined, serviceable: result?.serviceable ?? false };
       }
       const productType = row.cargoType === "on_demand_medical" ? "medical" : "standard";
-      return calculateOnDemandRateForParcel(
+      const result = calculateOnDemandRateForParcel(
         profile.address.province,
         profile.address.city,
         row.address.province,
@@ -53,8 +48,9 @@ export default function ParcelBooking() {
         activeVehicle,
         productTypes
       );
+      return { ...result, serviceable: true };
     });
-  }, [rows, profile, activeVehicle, productTypes]);
+  }, [rows, profile, activeVehicle, productTypes, standardResults]);
 
   const totalCharge = rowCharges.reduce((sum, r) => sum + r.charge, 0);
 
@@ -74,15 +70,15 @@ export default function ParcelBooking() {
   function applyRecurring(id: string) {
     const template = recurringShipments.find((r) => r.id === id);
     if (!template) return;
+    const key = String(rowKeyCounter++);
     setRows((prev) => [
       ...prev,
       {
-        key: String(rowKeyCounter++),
+        ...emptyConsigneeRow(key),
         name: template.consignee.name,
         address: { ...template.consignee.address, instructions: "" },
         contactNumber: template.consignee.contactNumber,
         cargoType: template.consignee.cargoType,
-        weightKg: 1,
       },
     ]);
   }
@@ -95,6 +91,11 @@ export default function ParcelBooking() {
       if (!row.name.trim()) return setError("Every consignee needs a name.");
       if (!row.address.province || !row.address.city) return setError("Every consignee needs a province and city.");
       if (!isValidMobile(row.contactNumber)) return setError("Every consignee needs a valid PH mobile number.");
+    }
+    for (let i = 0; i < rows.length; i++) {
+      if (rows[i].cargoType === "standard" && !rowCharges[i].serviceable) {
+        return setError(`Consignee #${i + 1}'s address isn't serviceable for Standard delivery yet — review it or switch to On-Demand.`);
+      }
     }
     if (!agreed) return setError("Please confirm the disclaimer to continue.");
 
@@ -113,6 +114,7 @@ export default function ParcelBooking() {
           distanceKm: rowCharges[i].distanceKm,
           charge: rowCharges[i].charge,
           status: "Booked",
+          parcelProductSku: row.cargoType === "standard" ? row.product : undefined,
         }))
       );
 
@@ -129,6 +131,7 @@ export default function ParcelBooking() {
 
       setSuccess(rows.length);
       setRows([emptyConsigneeRow(String(rowKeyCounter++))]);
+      setStandardResults({});
       setAgreed(false);
       setSaveAsRecurring(false);
     } catch (err) {
@@ -207,8 +210,11 @@ export default function ParcelBooking() {
               onChange={(v) => updateRow(index, v)}
               onRemove={() => removeRow(index)}
               canRemove={rows.length > 1}
-              charge={rowCharges[index]?.charge ?? 0}
-              distanceKm={rowCharges[index]?.distanceKm}
+              originProvince={profile?.address.province || ""}
+              originCity={profile?.address.city || ""}
+              onDemandCharge={rowCharges[index]?.charge ?? 0}
+              onDemandDistanceKm={rowCharges[index]?.distanceKm}
+              onStandardResult={(result) => setStandardResults((prev) => ({ ...prev, [row.key]: result }))}
             />
           ))}
 

@@ -20,33 +20,6 @@ function islandGroupOf(province: string): "Luzon" | "Visayas" | "Mindanao" {
 }
 
 /**
- * Standard Calculator — LBC's branch-network parcel rate, tiered by zone
- * (same city / same province / same island group / inter-island) plus a
- * per-kilogram surcharge above 1kg. This mirrors LBC's published door-to-door
- * rate structure at a simplified, illustrative level.
- */
-export function calculateStandardRate(
-  shipperProvince: string,
-  shipperCity: string,
-  consigneeProvince: string,
-  consigneeCity: string,
-  weightKg: number
-): number {
-  let base: number;
-  if (shipperCity && shipperCity === consigneeCity) {
-    base = 85;
-  } else if (shipperProvince === consigneeProvince) {
-    base = 105;
-  } else if (islandGroupOf(shipperProvince) === islandGroupOf(consigneeProvince)) {
-    base = 140;
-  } else {
-    base = 175;
-  }
-  const extraWeight = Math.max(0, weightKg - 1);
-  return Math.round(base + extraWeight * 18);
-}
-
-/**
  * Estimated pickup→drop-off distance for on-demand cargo booked from the
  * Parcel & Cargo form, where only province/city (not map coordinates) are
  * known for the consignee. Used to price via the same On-Demand Calculator
