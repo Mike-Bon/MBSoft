@@ -1,5 +1,5 @@
-import type { PricingConfig } from "../types";
-import { computeFare } from "./distance";
+import type { ProductType, Vehicle } from "../types";
+import { calculateFare, estimateDurationMinutes, vehicleToPricingConfig } from "./pricingEngine";
 
 const ISLAND_GROUP: Record<string, "Luzon" | "Visayas" | "Mindanao"> = {
   "Metro Manila": "Luzon",
@@ -69,11 +69,13 @@ export function calculateOnDemandRateForParcel(
   shipperCity: string,
   consigneeProvince: string,
   consigneeCity: string,
-  productType: "standard" | "medical",
-  pricing: PricingConfig[]
+  productTypeName: "standard" | "medical",
+  vehicle: Vehicle,
+  productTypes: ProductType[]
 ): { distanceKm: number; charge: number } {
   const distanceKm = estimateZoneDistanceKm(shipperProvince, shipperCity, consigneeProvince, consigneeCity);
-  const config = pricing.find((p) => p.productType === productType) || pricing[0];
-  const charge = computeFare(distanceKm, config.baseFare, config.perKm, config.minFare);
-  return { distanceKm, charge };
+  const durationMinutes = estimateDurationMinutes(distanceKm);
+  const product = productTypes.find((p) => p.name.toLowerCase() === productTypeName) || productTypes[0];
+  const { finalFare } = calculateFare(distanceKm, durationMinutes, vehicleToPricingConfig(vehicle), product.multiplier);
+  return { distanceKm, charge: finalFare };
 }

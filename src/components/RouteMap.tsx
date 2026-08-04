@@ -6,6 +6,11 @@ import type { LatLng } from "../lib/trackingGeo";
 
 const CONTAINER_STYLE = { width: "100%", height: "260px" };
 
+export interface RouteResult {
+  distanceKm: number;
+  durationMinutes: number;
+}
+
 export default function RouteMap({
   origin,
   destination,
@@ -13,7 +18,7 @@ export default function RouteMap({
 }: {
   origin: LatLng;
   destination: LatLng;
-  onRouteComputed?: (distanceKm: number) => void;
+  onRouteComputed?: (route: RouteResult) => void;
 }) {
   const { isLoaded, apiKeyConfigured } = useMaps();
   const [directions, setDirections] = useState<google.maps.DirectionsResult | null>(null);
@@ -30,12 +35,28 @@ export default function RouteMap({
         origin,
         destination,
         travelMode: google.maps.TravelMode.DRIVING,
+        // Real-time-traffic-aware duration — falls back to typical duration if
+        // Google can't estimate current traffic for this route.
+        drivingOptions: {
+          departureTime: new Date(),
+          trafficModel: google.maps.TrafficModel.BEST_GUESS,
+        },
       },
       (result, status) => {
         if (status === google.maps.DirectionsStatus.OK && result) {
           setDirections(result);
-          const meters = result.routes[0]?.legs.reduce((sum, leg) => sum + (leg.distance?.value || 0), 0) || 0;
-          if (meters > 0) onRouteComputed?.(Math.round((meters / 1000) * 10) / 10);
+          const legs = result.routes[0]?.legs || [];
+          const meters = legs.reduce((sum, leg) => sum + (leg.distance?.value || 0), 0);
+          const seconds = legs.reduce(
+            (sum, leg) => sum + (leg.duration_in_traffic?.value ?? leg.duration?.value ?? 0),
+            0
+          );
+          if (meters > 0 && seconds > 0) {
+            onRouteComputed?.({
+              distanceKm: Math.round((meters / 1000) * 10) / 10,
+              durationMinutes: Math.round(seconds / 60),
+            });
+          }
         } else {
           setError("Couldn't find a driving route between these addresses.");
         }

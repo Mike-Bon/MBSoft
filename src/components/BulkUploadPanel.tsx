@@ -55,7 +55,8 @@ const MAX_ROWS = 100;
 
 export default function BulkUploadPanel() {
   const { profile } = useAuth();
-  const { pricing } = useConfig();
+  const { vehicles, productTypes } = useConfig();
+  const activeVehicle = vehicles.find((v) => v.visible && v.active) || vehicles[0];
   const { createBookings } = useData();
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -131,7 +132,8 @@ export default function BulkUploadPanel() {
               province,
               city,
               productType,
-              pricing
+              activeVehicle,
+              productTypes
             );
             charge = result.charge;
             distanceKm = result.distanceKm;

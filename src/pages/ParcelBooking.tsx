@@ -18,8 +18,9 @@ type Mode = "single" | "bulk";
 
 export default function ParcelBooking() {
   const { profile } = useAuth();
-  const { pricing } = useConfig();
+  const { vehicles, productTypes } = useConfig();
   const { createBookings, recurringShipments, saveRecurringShipment } = useData();
+  const activeVehicle = vehicles.find((v) => v.visible && v.active) || vehicles[0];
 
   const [mode, setMode] = useState<Mode>("single");
   const [rows, setRows] = useState<ConsigneeRowValue[]>([emptyConsigneeRow(String(rowKeyCounter++))]);
@@ -49,10 +50,11 @@ export default function ParcelBooking() {
         row.address.province,
         row.address.city,
         productType,
-        pricing
+        activeVehicle,
+        productTypes
       );
     });
-  }, [rows, profile, pricing]);
+  }, [rows, profile, activeVehicle, productTypes]);
 
   const totalCharge = rowCharges.reduce((sum, r) => sum + r.charge, 0);
 

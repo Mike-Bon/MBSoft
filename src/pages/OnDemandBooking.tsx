@@ -1,12 +1,13 @@
 import { useState } from "react";
-import { Bike, Calculator, CheckCircle2, Stethoscope } from "lucide-react";
+import { Bike, Calculator, CheckCircle2, Clock, Route as RouteIcon, Stethoscope } from "lucide-react";
 import PageHeader from "../components/PageHeader";
 import AddressAutocompleteInput, { type PlaceValue } from "../components/AddressAutocompleteInput";
 import ConfirmAddressModal from "../components/ConfirmAddressModal";
-import RouteMap from "../components/RouteMap";
+import RouteMap, { type RouteResult } from "../components/RouteMap";
 import { useConfig } from "../context/ConfigContext";
 import { useData } from "../context/DataContext";
-import { computeFare, haversineKm } from "../lib/distance";
+import { haversineKm } from "../lib/distance";
+import { calculateFare, estimateDurationMinutes, vehicleToPricingConfig } from "../lib/pricingEngine";
 import { placeToAddress } from "../lib/parsePlace";
 import { formatCurrency, generateTrackingNumber, isValidMobile } from "../lib/utils";
 import { LiabilityDisclaimer } from "../components/DisclaimerNote";
@@ -18,8 +19,13 @@ const emptyPlace: PlaceValue = { address: "" };
 type AddressField = "pickup" | "dropoff";
 
 export default function OnDemandBooking() {
-  const { pricing, productTypes } = useConfig();
+  const { vehicles, productTypes } = useConfig();
   const { createBooking } = useData();
+
+  // Only vehicles marked visible are ever offered to customers — for MVP that's
+  // just Motorcycle, but enabling another vehicle from Administration is all it
+  // takes to make it available here too, no code changes required.
+  const vehicle = vehicles.find((v) => v.visible && v.active) || vehicles[0];
 
   // Draft mirrors what's typed/selected in the input; the confirmed value is only
   // committed once the user accepts the "Confirm address" popup for a real selection.
@@ -31,8 +37,9 @@ export default function OnDemandBooking() {
 
   const [productType, setProductType] = useState<"standard" | "medical">("standard");
   const [manualDistance, setManualDistance] = useState("");
-  const [routeDistanceKm, setRouteDistanceKm] = useState<number | null>(null);
-  const [result, setResult] = useState<{ distanceKm: number; fare: number } | null>(null);
+  const [manualDuration, setManualDuration] = useState("");
+  const [route, setRoute] = useState<RouteResult | null>(null);
+  const [result, setResult] = useState<{ distanceKm: number; durationMinutes: number; fare: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [showBookingForm, setShowBookingForm] = useState(false);
@@ -46,10 +53,15 @@ export default function OnDemandBooking() {
 
   function handleFieldChange(field: AddressField, place: PlaceValue) {
     const setDraft = field === "pickup" ? setPickupDraft : setDropoffDraft;
+    const setConfirmed = field === "pickup" ? setPickup : setDropoff;
     setDraft(place);
     if (place.lat && place.lng) {
       // A real suggestion was selected (not free typing) — ask the user to confirm it.
       setPendingConfirm({ field, place });
+    } else {
+      // Free typing (no Places selection, e.g. no Maps key or user prefers typing) —
+      // commit directly, no confirmation needed since there's nothing to confirm yet.
+      setConfirmed(place);
     }
   }
 
@@ -58,7 +70,7 @@ export default function OnDemandBooking() {
     const { field, place } = pendingConfirm;
     if (field === "pickup") setPickup(place);
     else setDropoff(place);
-    setRouteDistanceKm(null);
+    setRoute(null);
     setPendingConfirm(null);
   }
 
@@ -81,26 +93,40 @@ export default function OnDemandBooking() {
       setError("Select and confirm both a pickup and drop-off address.");
       return;
     }
+    if (!vehicle) {
+      setError("No delivery vehicle is currently available.");
+      return;
+    }
 
     let distanceKm: number;
-    if (routeDistanceKm) {
-      distanceKm = routeDistanceKm;
+    let durationMinutes: number;
+    if (route) {
+      distanceKm = route.distanceKm;
+      durationMinutes = route.durationMinutes;
     } else if (canGeolocate) {
+      // Route hasn't loaded yet (or failed) but we have real coordinates — fall
+      // back to a straight-line + road-detour estimate for both distance and time.
       distanceKm = haversineKm(pickup.lat!, pickup.lng!, dropoff.lat!, dropoff.lng!);
-    } else if (manualDistance) {
+      durationMinutes = estimateDurationMinutes(distanceKm);
+    } else if (manualDistance && manualDuration) {
       distanceKm = Number(manualDistance);
+      durationMinutes = Number(manualDuration);
       if (!distanceKm || distanceKm <= 0) {
         setError("Enter a valid distance in km.");
         return;
       }
+      if (!durationMinutes || durationMinutes <= 0) {
+        setError("Enter a valid travel time in minutes.");
+        return;
+      }
     } else {
-      setError("Select addresses from the suggestions, or enter the distance manually below.");
+      setError("Select addresses from the suggestions, or enter distance and travel time manually below.");
       return;
     }
 
-    const config = pricing.find((p) => p.productType === productType) || pricing[0];
-    const fare = computeFare(distanceKm, config.baseFare, config.perKm, config.minFare);
-    setResult({ distanceKm, fare });
+    const product = productTypes.find((p) => p.name.toLowerCase() === productType) || productTypes[0];
+    const { finalFare } = calculateFare(distanceKm, durationMinutes, vehicleToPricingConfig(vehicle), product.multiplier);
+    setResult({ distanceKm, durationMinutes, fare: finalFare });
   }
 
   async function handleBook() {
@@ -167,32 +193,43 @@ export default function OnDemandBooking() {
             />
           </div>
 
-          {!canGeolocate && (pickup.address || dropoff.address) && (
-            <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-gray-700">Distance (km) — manual entry</span>
-              <input
-                className="input"
-                type="number"
-                min={0.1}
-                step={0.1}
-                placeholder="e.g. 5.2"
-                value={manualDistance}
-                onChange={(e) => setManualDistance(e.target.value)}
-              />
-              <span className="mt-1 block text-xs text-gray-400">
-                Pick an address from the dropdown suggestions to auto-calculate distance, or enter it manually.
-              </span>
-            </label>
+          {canGeolocate && (
+            <RouteMap
+              origin={{ lat: pickup.lat!, lng: pickup.lng! }}
+              destination={{ lat: dropoff.lat!, lng: dropoff.lng! }}
+              onRouteComputed={setRoute}
+            />
           )}
 
-          {canGeolocate && (
-            <div>
-              <span className="mb-1.5 block text-sm font-medium text-gray-700">Route</span>
-              <RouteMap
-                origin={{ lat: pickup.lat!, lng: pickup.lng! }}
-                destination={{ lat: dropoff.lat!, lng: dropoff.lng! }}
-                onRouteComputed={setRouteDistanceKm}
-              />
+          {!canGeolocate && (pickup.address || dropoff.address) && (
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-medium text-gray-700">Distance (km)</span>
+                <input
+                  className="input"
+                  type="number"
+                  min={0.1}
+                  step={0.1}
+                  placeholder="e.g. 7.5"
+                  value={manualDistance}
+                  onChange={(e) => setManualDistance(e.target.value)}
+                />
+              </label>
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-medium text-gray-700">Travel time (min)</span>
+                <input
+                  className="input"
+                  type="number"
+                  min={1}
+                  step={1}
+                  placeholder="e.g. 20"
+                  value={manualDuration}
+                  onChange={(e) => setManualDuration(e.target.value)}
+                />
+              </label>
+              <p className="col-span-2 -mt-1 text-xs text-gray-400">
+                Pick an address from the dropdown suggestions to auto-calculate the route, or enter it manually.
+              </p>
             </div>
           )}
 
@@ -239,7 +276,7 @@ export default function OnDemandBooking() {
           <div className="flex items-center justify-between rounded-lg border border-lbc-border bg-lbc-bg px-4 py-3">
             <span className="text-sm text-gray-600">Delivery vehicle</span>
             <span className="flex items-center gap-2 text-sm font-bold text-gray-900">
-              <Bike className="h-4 w-4" /> Motorcycle
+              <Bike className="h-4 w-4" /> {vehicle?.name || "Motorcycle"}
             </span>
           </div>
 
@@ -253,20 +290,31 @@ export default function OnDemandBooking() {
 
         {result && !bookedTracking && (
           <div className="card mt-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-500">Estimated distance</p>
-                <p className="text-lg font-bold text-gray-900">{result.distanceKm} km</p>
+            <div className="text-center">
+              <p className="text-sm text-gray-500">Estimated Fare</p>
+              <p className="text-4xl font-extrabold text-lbc-red">{formatCurrency(result.fare)}</p>
+            </div>
+
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <div className="flex items-center gap-2 rounded-lg border border-lbc-border bg-lbc-bg px-4 py-3">
+                <RouteIcon className="h-4 w-4 text-gray-400" />
+                <div>
+                  <p className="text-xs text-gray-500">Estimated Distance</p>
+                  <p className="text-sm font-bold text-gray-900">{result.distanceKm} km</p>
+                </div>
               </div>
-              <div className="text-right">
-                <p className="text-sm text-gray-500">Estimated fare</p>
-                <p className="text-3xl font-extrabold text-lbc-red">{formatCurrency(result.fare)}</p>
+              <div className="flex items-center gap-2 rounded-lg border border-lbc-border bg-lbc-bg px-4 py-3">
+                <Clock className="h-4 w-4 text-gray-400" />
+                <div>
+                  <p className="text-xs text-gray-500">Estimated Travel Time</p>
+                  <p className="text-sm font-bold text-gray-900">{result.durationMinutes} minutes</p>
+                </div>
               </div>
             </div>
 
             {!showBookingForm ? (
               <button type="button" onClick={() => setShowBookingForm(true)} className="btn-primary mt-5 w-full">
-                Book This Delivery
+                Book Now
               </button>
             ) : (
               <div className="mt-5 space-y-4 border-t border-lbc-border pt-5">
@@ -296,10 +344,10 @@ export default function OnDemandBooking() {
           <div className="card mt-5 flex items-start gap-3 border-emerald-200 bg-emerald-50">
             <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
             <div>
-              <p className="font-bold text-emerald-800">Booking confirmed</p>
+              <p className="font-bold text-emerald-800">Booking Successful</p>
               <p className="text-sm text-emerald-700">
-                Tracking number <span className="font-mono font-semibold">{bookedTracking}</span> has been added to your
-                Shipments.
+                Our representative will contact you shortly. Tracking number{" "}
+                <span className="font-mono font-semibold">{bookedTracking}</span> has been added to your Shipments.
               </p>
             </div>
           </div>

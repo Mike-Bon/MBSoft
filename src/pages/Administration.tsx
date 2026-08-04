@@ -1,17 +1,30 @@
 import { useMemo, useState } from "react";
-import { LayoutGrid, Bike, Package, Percent, Calculator, ClipboardCheck, TrendingUp, Ruler, Stethoscope, Plus } from "lucide-react";
+import {
+  LayoutGrid,
+  Bike,
+  Package,
+  Calculator,
+  ClipboardCheck,
+  TrendingUp,
+  Ruler,
+  Stethoscope,
+  Plus,
+  ChevronDown,
+  ChevronUp,
+  MapPin,
+} from "lucide-react";
 import PageHeader from "../components/PageHeader";
 import { useData } from "../context/DataContext";
 import { useConfig } from "../context/ConfigContext";
 import { formatCurrency, classNames } from "../lib/utils";
+import type { Vehicle } from "../types";
 
-type Tab = "dashboard" | "vehicles" | "products" | "pricing";
+type Tab = "dashboard" | "vehicles" | "products";
 
 const TABS: { key: Tab; label: string; icon: typeof LayoutGrid }[] = [
   { key: "dashboard", label: "Dashboard", icon: LayoutGrid },
   { key: "vehicles", label: "Vehicles", icon: Bike },
   { key: "products", label: "Product Types", icon: Package },
-  { key: "pricing", label: "Pricing", icon: Percent },
 ];
 
 export default function Administration() {
@@ -37,7 +50,6 @@ export default function Administration() {
       {tab === "dashboard" && <AdminDashboardTab />}
       {tab === "vehicles" && <VehiclesTab />}
       {tab === "products" && <ProductTypesTab />}
-      {tab === "pricing" && <PricingTab />}
     </div>
   );
 }
@@ -49,19 +61,44 @@ function AdminDashboardTab() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const todays = bookings.filter((b) => new Date(b.createdAt) >= today);
-    const onDemand = todays.filter((b) => b.bookingType === "on_demand");
+    const onDemandToday = todays.filter((b) => b.bookingType === "on_demand");
     const standard = todays.filter((b) => b.consignee.cargoType === "on_demand_standard");
     const medical = todays.filter((b) => b.consignee.cargoType === "on_demand_medical");
     const avgFare = todays.length ? todays.reduce((s, b) => s + b.charge, 0) / todays.length : 0;
-    const distances = onDemand.map((b) => b.distanceKm).filter((d): d is number => typeof d === "number");
-    const avgDistance = distances.length ? distances.reduce((s, d) => s + d, 0) / distances.length : null;
+    const distancesToday = onDemandToday.map((b) => b.distanceKm).filter((d): d is number => typeof d === "number");
+    const avgDistance = distancesToday.length ? distancesToday.reduce((s, d) => s + d, 0) / distancesToday.length : null;
+
+    const allOnDemand = bookings.filter((b) => b.bookingType === "on_demand");
+    const routeCounts = new Map<string, number>();
+    for (const b of allOnDemand) {
+      if (!b.pickupAddress || !b.dropoffAddress) continue;
+      const key = `${b.pickupAddress} → ${b.dropoffAddress}`;
+      routeCounts.set(key, (routeCounts.get(key) || 0) + 1);
+    }
+    let mostUsedRoute: string | null = null;
+    let mostUsedCount = 0;
+    for (const [route, count] of routeCounts) {
+      if (count > mostUsedCount) {
+        mostUsedRoute = route;
+        mostUsedCount = count;
+      }
+    }
+
+    const farePerKm = allOnDemand
+      .filter((b): b is typeof b & { distanceKm: number } => typeof b.distanceKm === "number" && b.distanceKm > 0)
+      .map((b) => b.charge / b.distanceKm!);
+    const avgFarePerKm = farePerKm.length ? farePerKm.reduce((s, v) => s + v, 0) / farePerKm.length : null;
+
     return {
-      calculations: onDemand.length,
+      calculations: onDemandToday.length,
       bookings: todays.length,
       avgFare,
       standard: standard.length,
       medical: medical.length,
       avgDistance,
+      mostUsedRoute,
+      mostUsedCount,
+      avgFarePerKm,
     };
   }, [bookings]);
 
@@ -81,6 +118,24 @@ function AdminDashboardTab() {
           value={stats.avgDistance ? `${stats.avgDistance.toFixed(1)} km` : "—"}
           iconClass="bg-indigo-50 text-indigo-600"
         />
+        <StatCard
+          icon={TrendingUp}
+          label="Average Fare Per Kilometer"
+          value={stats.avgFarePerKm ? formatCurrency(stats.avgFarePerKm) : "—"}
+          iconClass="bg-purple-50 text-purple-600"
+        />
+        <div className="card sm:col-span-2">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-gray-500">Most Used Route</span>
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-teal-50 text-teal-600">
+              <MapPin className="h-4.5 w-4.5" />
+            </div>
+          </div>
+          <p className="mt-3 truncate text-lg font-bold text-gray-900" title={stats.mostUsedRoute || undefined}>
+            {stats.mostUsedRoute || "—"}
+          </p>
+          {stats.mostUsedRoute && <p className="mt-1 text-xs text-gray-400">{stats.mostUsedCount} bookings</p>}
+        </div>
       </div>
     </div>
   );
@@ -100,15 +155,75 @@ function StatCard({ icon: Icon, label, value, iconClass }: { icon: typeof Calcul
   );
 }
 
+type VehicleDraft = Pick<
+  Vehicle,
+  | "baseFare"
+  | "includedKm"
+  | "rateFirstKm"
+  | "rateAfterIncluded"
+  | "timeRate"
+  | "trafficMultiplier"
+  | "demandMultiplier"
+  | "zoneMultiplier"
+  | "platformMargin"
+> & { maxWeightKg: string; maxDimensions: string };
+
+function draftFromVehicle(v: Vehicle): VehicleDraft {
+  return {
+    baseFare: v.baseFare,
+    includedKm: v.includedKm,
+    rateFirstKm: v.rateFirstKm,
+    rateAfterIncluded: v.rateAfterIncluded,
+    timeRate: v.timeRate,
+    trafficMultiplier: v.trafficMultiplier,
+    demandMultiplier: v.demandMultiplier,
+    zoneMultiplier: v.zoneMultiplier,
+    platformMargin: v.platformMargin,
+    maxWeightKg: v.maxWeightKg != null ? String(v.maxWeightKg) : "",
+    maxDimensions: v.maxDimensions || "",
+  };
+}
+
 function VehiclesTab() {
-  const { vehicles, addVehicle, toggleVehicle } = useConfig();
+  const { vehicles, addVehicle, updateVehicle } = useConfig();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [drafts, setDrafts] = useState<Record<string, VehicleDraft>>({});
+
+  function draftFor(v: Vehicle): VehicleDraft {
+    return drafts[v.id] || draftFromVehicle(v);
+  }
+
+  function setDraftField<K extends keyof VehicleDraft>(v: Vehicle, key: K, value: VehicleDraft[K]) {
+    setDrafts((prev) => ({ ...prev, [v.id]: { ...draftFor(v), [key]: value } }));
+  }
+
+  async function saveRates(v: Vehicle) {
+    const draft = draftFor(v);
+    await updateVehicle(v.id, {
+      baseFare: draft.baseFare,
+      includedKm: draft.includedKm,
+      rateFirstKm: draft.rateFirstKm,
+      rateAfterIncluded: draft.rateAfterIncluded,
+      timeRate: draft.timeRate,
+      trafficMultiplier: draft.trafficMultiplier,
+      demandMultiplier: draft.demandMultiplier,
+      zoneMultiplier: draft.zoneMultiplier,
+      platformMargin: draft.platformMargin,
+      maxWeightKg: draft.maxWeightKg ? Number(draft.maxWeightKg) : undefined,
+      maxDimensions: draft.maxDimensions || undefined,
+    });
+  }
 
   return (
     <div className="space-y-5">
       <div className="card">
         <h3 className="mb-3 font-bold text-gray-900">Add Vehicle</h3>
+        <p className="mb-3 text-sm text-gray-500">
+          New vehicles start hidden from customers (Visible = off) with default rates — enable Visible once its rate
+          card is configured. No redeployment needed.
+        </p>
         <div className="flex flex-wrap gap-3">
           <input className="input max-w-xs" placeholder="Vehicle name" value={name} onChange={(e) => setName(e.target.value)} />
           <input className="input flex-1" placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} />
@@ -128,36 +243,113 @@ function VehiclesTab() {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-lbc-border bg-white shadow-sm">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-lbc-bg text-xs uppercase text-gray-500">
-            <tr>
-              <th className="px-5 py-3">Vehicle</th>
-              <th className="px-5 py-3">Description</th>
-              <th className="px-5 py-3 text-right">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {vehicles.map((v) => (
-              <tr key={v.id} className="border-t border-lbc-border">
-                <td className="px-5 py-3 font-semibold text-gray-900">{v.name}</td>
-                <td className="px-5 py-3 text-gray-500">{v.description}</td>
-                <td className="px-5 py-3 text-right">
-                  <ToggleButton active={v.active} onClick={() => toggleVehicle(v.id, !v.active)} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="space-y-3">
+        {vehicles.map((v) => {
+          const isOpen = expanded === v.id;
+          const draft = draftFor(v);
+          return (
+            <div key={v.id} className="overflow-hidden rounded-2xl border border-lbc-border bg-white shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+                <div>
+                  <p className="font-semibold text-gray-900">{v.name}</p>
+                  <p className="text-sm text-gray-500">{v.description}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <ToggleButton
+                    label="Active"
+                    active={v.active}
+                    onClick={() => updateVehicle(v.id, { active: !v.active })}
+                  />
+                  <ToggleButton
+                    label="Visible"
+                    active={v.visible}
+                    onClick={() => updateVehicle(v.id, { visible: !v.visible })}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setExpanded(isOpen ? null : v.id)}
+                    className="btn-secondary !px-3 !py-1.5 text-xs"
+                  >
+                    Edit Rates
+                    {isOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                  </button>
+                </div>
+              </div>
+
+              {isOpen && (
+                <div className="border-t border-lbc-border bg-lbc-bg px-5 py-5">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                    <NumberField label="Base Fare (₱)" value={draft.baseFare} onChange={(x) => setDraftField(v, "baseFare", x)} />
+                    <NumberField label="Included Distance (km)" value={draft.includedKm} onChange={(x) => setDraftField(v, "includedKm", x)} />
+                    <NumberField label="Rate First KM (₱)" value={draft.rateFirstKm} onChange={(x) => setDraftField(v, "rateFirstKm", x)} />
+                    <NumberField
+                      label="Rate After Included (₱/km)"
+                      value={draft.rateAfterIncluded}
+                      onChange={(x) => setDraftField(v, "rateAfterIncluded", x)}
+                    />
+                    <NumberField label="Time Rate (₱/min)" value={draft.timeRate} onChange={(x) => setDraftField(v, "timeRate", x)} step={0.1} />
+                    <NumberField
+                      label="Traffic Multiplier"
+                      value={draft.trafficMultiplier}
+                      onChange={(x) => setDraftField(v, "trafficMultiplier", x)}
+                      step={0.05}
+                    />
+                    <NumberField
+                      label="Demand Multiplier"
+                      value={draft.demandMultiplier}
+                      onChange={(x) => setDraftField(v, "demandMultiplier", x)}
+                      step={0.05}
+                    />
+                    <NumberField
+                      label="Zone Multiplier"
+                      value={draft.zoneMultiplier}
+                      onChange={(x) => setDraftField(v, "zoneMultiplier", x)}
+                      step={0.05}
+                    />
+                    <NumberField
+                      label="Platform Margin (₱)"
+                      value={draft.platformMargin}
+                      onChange={(x) => setDraftField(v, "platformMargin", x)}
+                    />
+                    <label className="block">
+                      <span className="mb-1.5 block text-sm font-medium text-gray-700">Maximum Weight (kg)</span>
+                      <input
+                        type="number"
+                        min={0}
+                        className="input"
+                        value={draft.maxWeightKg}
+                        onChange={(e) => setDraftField(v, "maxWeightKg", e.target.value)}
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-1.5 block text-sm font-medium text-gray-700">Maximum Dimensions</span>
+                      <input
+                        className="input"
+                        placeholder='e.g. 40 x 30 x 30 cm'
+                        value={draft.maxDimensions}
+                        onChange={(e) => setDraftField(v, "maxDimensions", e.target.value)}
+                      />
+                    </label>
+                  </div>
+                  <button type="button" onClick={() => saveRates(v)} className="btn-primary mt-4">
+                    Save {v.name} Rates
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 }
 
 function ProductTypesTab() {
-  const { productTypes, addProductType, toggleProductType } = useConfig();
+  const { productTypes, addProductType, updateProductType } = useConfig();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [multiplier, setMultiplier] = useState(1);
+  const [drafts, setDrafts] = useState<Record<string, number>>({});
 
   return (
     <div className="space-y-5">
@@ -166,14 +358,24 @@ function ProductTypesTab() {
         <div className="flex flex-wrap gap-3">
           <input className="input max-w-xs" placeholder="Product name" value={name} onChange={(e) => setName(e.target.value)} />
           <input className="input flex-1" placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} />
+          <input
+            type="number"
+            step={0.05}
+            min={0.01}
+            className="input max-w-[140px]"
+            placeholder="Multiplier"
+            value={multiplier}
+            onChange={(e) => setMultiplier(Number(e.target.value))}
+          />
           <button
             type="button"
             className="btn-primary"
             onClick={async () => {
               if (!name) return;
-              await addProductType(name, description);
+              await addProductType(name, description, multiplier);
               setName("");
               setDescription("");
+              setMultiplier(1);
             }}
           >
             <Plus className="h-4 w-4" />
@@ -188,6 +390,7 @@ function ProductTypesTab() {
             <tr>
               <th className="px-5 py-3">Product Type</th>
               <th className="px-5 py-3">Description</th>
+              <th className="px-5 py-3">Multiplier</th>
               <th className="px-5 py-3 text-right">Status</th>
             </tr>
           </thead>
@@ -196,8 +399,27 @@ function ProductTypesTab() {
               <tr key={p.id} className="border-t border-lbc-border">
                 <td className="px-5 py-3 font-semibold text-gray-900">{p.name}</td>
                 <td className="px-5 py-3 text-gray-500">{p.description}</td>
+                <td className="px-5 py-3">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      step={0.05}
+                      min={0.01}
+                      className="input max-w-[100px] !py-1.5"
+                      value={drafts[p.id] ?? p.multiplier}
+                      onChange={(e) => setDrafts((d) => ({ ...d, [p.id]: Number(e.target.value) }))}
+                    />
+                    <button
+                      type="button"
+                      className="btn-secondary !px-2.5 !py-1.5 text-xs"
+                      onClick={() => updateProductType(p.id, { multiplier: drafts[p.id] ?? p.multiplier })}
+                    >
+                      Save
+                    </button>
+                  </div>
+                </td>
                 <td className="px-5 py-3 text-right">
-                  <ToggleButton active={p.active} onClick={() => toggleProductType(p.id, !p.active)} />
+                  <ToggleButton active={p.active} onClick={() => updateProductType(p.id, { active: !p.active })} />
                 </td>
               </tr>
             ))}
@@ -208,63 +430,26 @@ function ProductTypesTab() {
   );
 }
 
-function PricingTab() {
-  const { pricing, updatePricing } = useConfig();
-  const [drafts, setDrafts] = useState<Record<string, { baseFare: number; perKm: number; minFare: number }>>({});
-
-  function draftFor(id: string) {
-    const found = pricing.find((p) => p.id === id)!;
-    return drafts[id] || { baseFare: found.baseFare, perKm: found.perKm, minFare: found.minFare };
-  }
-
-  return (
-    <div className="space-y-5">
-      {pricing.map((p) => {
-        const draft = draftFor(p.id);
-        return (
-          <div key={p.id} className="card">
-            <h3 className="mb-4 font-bold capitalize text-gray-900">{p.productType} Rate Card</h3>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <NumberField
-                label="Base Fare (₱)"
-                value={draft.baseFare}
-                onChange={(v) => setDrafts((d) => ({ ...d, [p.id]: { ...draft, baseFare: v } }))}
-              />
-              <NumberField
-                label="Per KM (₱)"
-                value={draft.perKm}
-                onChange={(v) => setDrafts((d) => ({ ...d, [p.id]: { ...draft, perKm: v } }))}
-              />
-              <NumberField
-                label="Minimum Fare (₱)"
-                value={draft.minFare}
-                onChange={(v) => setDrafts((d) => ({ ...d, [p.id]: { ...draft, minFare: v } }))}
-              />
-            </div>
-            <button
-              type="button"
-              className="btn-primary mt-4"
-              onClick={() => updatePricing(p.id, draft)}
-            >
-              Save {p.productType} Pricing
-            </button>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+function NumberField({
+  label,
+  value,
+  onChange,
+  step = 1,
+}: {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+  step?: number;
+}) {
   return (
     <label className="block">
       <span className="mb-1.5 block text-sm font-medium text-gray-700">{label}</span>
-      <input type="number" min={0} step={1} className="input" value={value} onChange={(e) => onChange(Number(e.target.value))} />
+      <input type="number" min={0} step={step} className="input" value={value} onChange={(e) => onChange(Number(e.target.value))} />
     </label>
   );
 }
 
-function ToggleButton({ active, onClick }: { active: boolean; onClick: () => void }) {
+function ToggleButton({ label, active, onClick }: { label?: string; active: boolean; onClick: () => void }) {
   return (
     <button
       type="button"
@@ -274,7 +459,7 @@ function ToggleButton({ active, onClick }: { active: boolean; onClick: () => voi
         active ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"
       )}
     >
-      {active ? "Active" : "Inactive"}
+      {label ? `${label}: ${active ? "On" : "Off"}` : active ? "Active" : "Inactive"}
     </button>
   );
 }

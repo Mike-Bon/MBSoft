@@ -226,3 +226,39 @@ create policy "Users can view own invoices" on public.invoices
   for select using (auth.uid() = user_id);
 create policy "Users can insert own invoices" on public.invoices
   for insert with check (auth.uid() = user_id);
+
+-- =========================================================
+-- Configuration-driven on-demand pricing engine (see migration_003_pricing_engine.sql
+-- for the standalone version to run against an already-provisioned project).
+-- =========================================================
+alter table public.vehicles
+  add column if not exists visible boolean not null default false,
+  add column if not exists base_fare numeric not null default 49,
+  add column if not exists included_km numeric not null default 5,
+  add column if not exists rate_first_km numeric not null default 6,
+  add column if not exists rate_after_included numeric not null default 5,
+  add column if not exists time_rate numeric not null default 1,
+  add column if not exists traffic_multiplier numeric not null default 1,
+  add column if not exists demand_multiplier numeric not null default 1,
+  add column if not exists zone_multiplier numeric not null default 1,
+  add column if not exists platform_margin numeric not null default 5,
+  add column if not exists max_weight_kg numeric,
+  add column if not exists max_dimensions text;
+
+update public.vehicles set visible = true where lower(name) = 'motorcycle';
+
+alter table public.product_types
+  add column if not exists multiplier numeric not null default 1.0;
+
+update public.product_types set multiplier = 1.00 where lower(name) = 'standard';
+update public.product_types set multiplier = 1.20 where lower(name) = 'medical';
+
+create policy "Authenticated can insert vehicles" on public.vehicles
+  for insert to authenticated with check (true);
+create policy "Authenticated can update vehicles" on public.vehicles
+  for update to authenticated using (true) with check (true);
+
+create policy "Authenticated can insert product types" on public.product_types
+  for insert to authenticated with check (true);
+create policy "Authenticated can update product types" on public.product_types
+  for update to authenticated using (true) with check (true);

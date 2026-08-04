@@ -80,19 +80,26 @@ export interface Ticket {
   createdAt: string;
 }
 
-export interface PricingConfig {
-  id: string;
-  productType: "standard" | "medical";
-  baseFare: number;
-  perKm: number;
-  minFare: number;
-}
-
+/** Full rate card for one vehicle type — the pricing engine's only input besides
+ * distance/duration/product multiplier. Only `visible` vehicles are offered to
+ * customers; `active` vehicles exist but may be hidden (kept, not deleted). */
 export interface Vehicle {
   id: string;
   name: string;
   description: string;
   active: boolean;
+  visible: boolean;
+  baseFare: number;
+  includedKm: number;
+  rateFirstKm: number;
+  rateAfterIncluded: number;
+  timeRate: number;
+  trafficMultiplier: number;
+  demandMultiplier: number;
+  zoneMultiplier: number;
+  platformMargin: number;
+  maxWeightKg?: number;
+  maxDimensions?: string;
 }
 
 export interface ProductType {
@@ -100,6 +107,8 @@ export interface ProductType {
   name: string;
   description: string;
   active: boolean;
+  /** Applied to the final fare: finalFare = ceil(standardFare * multiplier). */
+  multiplier: number;
 }
 
 export interface Invoice {

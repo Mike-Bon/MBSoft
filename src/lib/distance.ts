@@ -12,8 +12,3 @@ export function haversineKm(lat1: number, lng1: number, lat2: number, lng2: numb
   const ROAD_DETOUR_FACTOR = 1.3;
   return Math.round(straightLineKm * ROAD_DETOUR_FACTOR * 10) / 10;
 }
-
-export function computeFare(distanceKm: number, baseFare: number, perKm: number, minFare: number): number {
-  const fare = baseFare + Math.max(0, distanceKm - 1) * perKm;
-  return Math.max(minFare, Math.round(fare));
-}
